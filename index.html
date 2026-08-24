@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="ko" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>word2vec — 단어를 벡터로 만드는 법</title>
+<meta name="description" content="분포 가설부터 CBOW·Skip-gram, 계층적 소프트맥스와 네거티브 샘플링, 서브샘플링, 구(phrase) 학습, 벡터 산술까지. 브라우저에서 실제로 학습시키며 배우는 인터랙티브 교육 자료.">
+<style>
+:root{
+  color-scheme: light;
+  --surface-1:#fcfcfb;
+  --page:#f9f9f7;
+  --text-primary:#0b0b0b;
+  --text-secondary:#52514e;
+  --muted:#898781;
+  --grid:#e1e0d9;
+  --axis:#c3c2b7;
+  --border:rgba(11,11,11,0.10);
+  --s1:#2a78d6;
+  --s2:#eb6834;
+  --s3:#1baf7a;
+  --s4:#8b5cf6;
+  --s8:#e34948;
+  --warn:#fab219;
+  --good:#0ca30c;
+  --wash:rgba(42,120,214,0.08);
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface-1:#1a1a19;
+  --page:#0d0d0d;
+  --text-primary:#ffffff;
+  --text-secondary:#c3c2b7;
+  --muted:#898781;
+  --grid:#2c2c2a;
+  --axis:#383835;
+  --border:rgba(255,255,255,0.10);
+  --s1:#3987e5;
+  --s2:#d95926;
+  --s3:#199e70;
+  --s4:#a78bfa;
+  --s8:#e66767;
+  --warn:#fab219;
+  --good:#0ca30c;
+  --wash:rgba(57,135,229,0.14);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%; scroll-behavior:smooth}
+body{
+  margin:0; background:var(--page); color:var(--text-primary);
+  font-family:system-ui,-apple-system,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  font-size:16px; line-height:1.75; letter-spacing:-0.01em;
+}
+.wrap{max-width:880px;margin:0 auto;padding:0 20px 120px}
+header.hero{padding:56px 0 28px;border-bottom:1px solid var(--border);margin-bottom:8px}
+h1{font-size:clamp(28px,5.2vw,42px);line-height:1.25;margin:0 0 12px;letter-spacing:-0.03em}
+.sub{color:var(--text-secondary);font-size:17px;margin:0}
+.kicker{font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 10px}
+h2{font-size:clamp(21px,3.4vw,27px);margin:56px 0 6px;letter-spacing:-0.02em;line-height:1.3}
+h3{font-size:18px;margin:34px 0 6px;letter-spacing:-0.015em}
+h4{font-size:15px;margin:22px 0 4px;color:var(--text-secondary)}
+p{margin:12px 0}
+ul,ol{margin:12px 0;padding-left:22px}
+li{margin:6px 0}
+strong{font-weight:650}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:0.9em;background:var(--wash);padding:1px 5px;border-radius:4px}
+a{color:var(--s1)}
+
+.lv{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;
+  letter-spacing:0.06em;padding:4px 11px;border-radius:999px;border:1px solid var(--border);
+  color:var(--text-secondary);background:var(--surface-1);margin-bottom:2px}
+.lv .dot{width:8px;height:8px;border-radius:50%}
+.lv1 .dot{background:var(--s3)} .lv2 .dot{background:var(--s1)} .lv3 .dot{background:var(--s2)}
+
+.card{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:20px;margin:22px 0}
+.demo{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:18px;margin:24px 0}
+.demo h4{margin:0 0 2px;font-size:15px;color:var(--text-primary);font-weight:650}
+.demo .cap{color:var(--muted);font-size:13px;margin:0 0 14px;line-height:1.6}
+canvas{display:block;width:100%;border-radius:8px;background:var(--surface-1);touch-action:none}
+.scrollx{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+.scrollx canvas{min-width:560px}
+.scrollhint{display:none;font-size:11.5px;color:var(--muted);margin:6px 0 0}
+@media (max-width:600px){ .scrollhint{display:block} }
+
+.ctrls{display:flex;flex-wrap:wrap;gap:14px 22px;margin:14px 0 4px;align-items:flex-end}
+.ctrl{flex:1 1 210px;min-width:170px}
+.ctrl label{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--text-secondary);margin-bottom:4px;gap:10px}
+.ctrl label b{font-variant-numeric:tabular-nums;color:var(--text-primary);font-weight:650;font-size:13px}
+input[type=range]{width:100%;accent-color:var(--s1);height:22px;margin:0}
+input[type=text],textarea,select{width:100%;font:inherit;font-size:14px;
+  padding:8px 11px;border-radius:8px;border:1px solid var(--border);background:var(--page);color:var(--text-primary)}
+textarea{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.6;resize:vertical}
+select{padding:6px 9px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+button{font:inherit;font-size:13px;font-weight:600;padding:7px 14px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface-1);color:var(--text-primary);transition:background .12s}
+button:hover{background:var(--wash)}
+button.primary{background:var(--s1);border-color:var(--s1);color:#fff}
+button.primary:hover{filter:brightness(1.07)}
+button[aria-pressed=true]{background:var(--wash);border-color:var(--s1);color:var(--text-primary)}
+button:disabled{opacity:.5;cursor:default}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--text-secondary);margin:10px 0 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+.status{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:650;
+  padding:5px 12px;border-radius:999px;border:1px solid var(--border);margin-top:12px}
+.status .ico{font-size:14px;line-height:1}
+.readout{display:flex;flex-wrap:wrap;gap:8px 26px;margin-top:12px;font-size:13px;color:var(--text-secondary)}
+.readout b{display:block;font-size:19px;color:var(--text-primary);font-weight:650;line-height:1.3;letter-spacing:-0.02em}
+
+.math{font-family:"Cambria Math","Latin Modern Math",Georgia,"Times New Roman",serif;
+  font-style:italic;font-size:1.06em;letter-spacing:0}
+.math .op,.math .num,.math .fn{font-style:normal}
+.eq{background:var(--surface-1);border:1px solid var(--border);border-left:3px solid var(--s1);
+  border-radius:0 10px 10px 0;padding:16px 18px 14px;margin:18px 0;overflow-x:auto;text-align:center;line-height:2}
+.eq .note{display:block;font-family:system-ui,sans-serif;font-style:normal;font-size:12.5px;
+  color:var(--muted);margin:6px 0 0;padding:0;border:0;line-height:1.55}
+.frac{display:inline-flex;flex-direction:column;vertical-align:middle;text-align:center;margin:0 .22em;line-height:1.2}
+.frac .n{border-bottom:1.2px solid currentColor;padding:0 .35em 1px}
+.frac .d{padding:1px .35em 0}
+.rt{white-space:nowrap}
+.rt::before{content:'\221A';font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-style:normal}
+.rt>span{border-top:1.05px solid currentColor;padding:0 .16em 0 .05em;margin-left:-.04em}
+sub,sup{font-size:0.72em;font-style:normal}
+
+.tw{overflow-x:auto;margin:18px 0;border:1px solid var(--border);border-radius:12px;background:var(--surface-1)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{padding:10px 14px;text-align:left;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-weight:650;font-size:12.5px;color:var(--text-secondary);letter-spacing:0.02em;background:var(--page)}
+tr:last-child td{border-bottom:none}
+td.num,th.num{font-variant-numeric:tabular-nums;text-align:right}
+td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+
+.note{border-left:3px solid var(--axis);padding:2px 0 2px 16px;margin:18px 0;color:var(--text-secondary);font-size:14.5px}
+.key{border:1px solid var(--border);border-left:3px solid var(--s2);background:var(--surface-1);
+  border-radius:0 10px 10px 0;padding:14px 18px;margin:20px 0}
+.key .lbl{font-size:11.5px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--s2);display:block;margin-bottom:4px}
+.key p{margin:0}
+
+nav.toc{background:var(--surface-1);border:1px solid var(--border);border-radius:14px;padding:18px 22px;margin:26px 0}
+nav.toc ol{margin:6px 0 0;padding-left:20px;font-size:14.5px}
+nav.toc a{text-decoration:none;color:var(--text-primary)}
+nav.toc a:hover{color:var(--s1)}
+nav.toc .lvtag{color:var(--muted);font-size:12px;margin-left:6px}
+
+/* 데모 전용 */
+.sentbox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:2.4;
+  background:var(--page);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:12px 0;word-break:break-word}
+.tok{padding:3px 5px;border-radius:5px}
+.tok.ctr{background:var(--s2);color:#fff;font-weight:700}
+.tok.win{background:var(--wash);color:var(--s1);font-weight:650}
+.pairs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.pair{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+  border:1px solid var(--border);border-radius:6px;padding:3px 8px;background:var(--page);color:var(--text-secondary)}
+.pair b{color:var(--s2)}
+.nbr{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.nbr span{font-size:12.5px;border:1px solid var(--border);border-radius:999px;padding:3px 10px;background:var(--page)}
+.nbr span b{color:var(--s1);font-variant-numeric:tabular-nums}
+.anrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.anrow select{width:auto;min-width:110px}
+.anrow .opx{font-size:18px;color:var(--muted);font-weight:700}
+
+.q{border:1px solid var(--border);border-radius:10px;background:var(--surface-1);padding:16px 18px;margin:14px 0}
+.q h4{margin:0 0 8px;font-size:15px;color:var(--text-primary)}
+.q .opt{display:flex;gap:9px;align-items:flex-start;padding:7px 10px;border:1px solid var(--border);
+  border-radius:8px;margin:6px 0;cursor:pointer;font-size:14px;transition:border-color .12s}
+.q .opt:hover{border-color:var(--s1)}
+.q .opt input{margin-top:5px;accent-color:var(--s1)}
+.q .opt.correct{border-color:var(--good);background:rgba(12,163,12,0.08)}
+.q .opt.wrong{border-color:var(--s8);background:rgba(227,73,72,0.07)}
+.q .expl{display:none;font-size:13.5px;color:var(--text-secondary);border-left:3px solid var(--good);
+  padding:2px 0 2px 12px;margin-top:10px;line-height:1.65}
+.q .expl.bad{border-left-color:var(--s8)}
+.q .expl.show{display:block}
+.quiz-score{font-size:15px;font-weight:700;margin-top:14px}
+
+.tog{position:fixed;top:14px;right:14px;z-index:10;border-radius:999px;padding:7px 13px;
+  background:var(--surface-1);border:1px solid var(--border);font-size:12.5px}
+@media print{.tog{display:none}}
+footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}
+footer a{color:var(--text-secondary)}
+.refs{font-size:13px;color:var(--text-secondary);line-height:1.7}
+.refs li{margin:3px 0}
+</style>
+</head>
+<body>
+<button class="tog" id="themeBtn" type="button">◐ 다크</button>
+<div class="wrap">
+
+<header class="hero">
+  <p class="kicker">자연어 처리 · 단어 임베딩</p>
+  <h1>word2vec — 단어를 벡터로 만드는 법</h1>
+  <p class="sub">“king − man + woman ≈ queen”이 어떻게 가능한가. 분포 가설에서 출발해 CBOW와 Skip-gram, 소프트맥스를 대체한 두 가지 기법, 서브샘플링과 구(phrase) 학습까지 따라가고, 마지막에는 브라우저에서 <strong>실제로 임베딩을 학습시켜</strong> 지도 위에 단어가 모이는 것을 직접 확인합니다.</p>
+</header>
+
+<nav class="toc">
+  <strong>학습 경로</strong>
+  <ol>
+    <li><a href="#why">단어를 왜 벡터로 바꾸는가</a><span class="lvtag">입문</span></li>
+    <li><a href="#task">학습 신호 만들기 — 윈도우와 두 가지 과제</a><span class="lvtag">입문</span></li>
+    <li><a href="#arch">모델 구조 — 행렬 두 개가 전부</a><span class="lvtag">학부</span></li>
+    <li><a href="#cost">소프트맥스가 너무 비싸다 — 계층적 소프트맥스와 네거티브 샘플링</a><span class="lvtag">학부</span></li>
+    <li><a href="#sub">흔한 단어는 덜 보기 — 서브샘플링</a><span class="lvtag">학부</span></li>
+    <li><a href="#train">직접 학습시켜 보기</a><span class="lvtag">실습</span></li>
+    <li><a href="#analogy">벡터 산술과 유추</a><span class="lvtag">학부</span></li>
+    <li><a href="#phrase">구(phrase) 학습과 가법적 구성성</a><span class="lvtag">심화</span></li>
+    <li><a href="#after">그 뒤에 무슨 일이 있었나</a><span class="lvtag">심화</span></li>
+    <li><a href="#wrap">정리와 퀴즈</a><span class="lvtag">종합</span></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════ 1 ═══════════════ -->
+<h2 id="why"><span class="lv lv1"><span class="dot"></span>LEVEL 1 · 입문</span><br>단어를 왜 벡터로 바꾸는가</h2>
+
+<p>컴퓨터에게 단어를 주려면 숫자로 바꿔야 합니다. 가장 단순한 방법은 어휘에 번호를 붙이고, 해당 자리만 1인 긴 벡터를 쓰는 것입니다. 이를 <strong>원-핫 인코딩</strong>이라 합니다.</p>
+
+<p>이 방식에는 치명적인 결함이 있습니다. 어떤 두 단어를 골라도 <strong>내적이 0</strong>이라는 점입니다. ‘개’와 ‘고양이’, ‘개’와 ‘행정’이 컴퓨터에게는 똑같이 무관합니다. 게다가 어휘가 100만 개면 벡터 하나가 100만 차원입니다.</p>
+
+<div class="demo">
+  <h4>데모 1 — 원-핫 vs 밀집 벡터</h4>
+  <p class="cap">위는 원-핫, 아래는 학습된 밀집 벡터(개념 예시)입니다. 오른쪽 표의 코사인 유사도를 보세요. 원-핫에서는 <strong>모든 쌍이 정확히 0</strong>이지만, 밀집 벡터에서는 관계가 숫자로 나타납니다.</p>
+  <div class="scrollx"><canvas id="c1" height="350"></canvas></div>
+  <p class="scrollhint">↔ 그림이 잘려 보이면 가로로 밀어서 볼 수 있습니다.</p>
+  <div id="st1" class="status"></div>
+</div>
+
+<p>그렇다면 밀집 벡터의 숫자들은 어디서 오는 걸까요? 사람이 “동물성 0.8, 인공성 0.1”처럼 채워 넣는 것은 불가능합니다. 여기서 언어학의 오래된 통찰이 등장합니다.</p>
+
+<div class="key"><span class="lbl">분포 가설 (distributional hypothesis)</span><p><strong>단어의 의미는 그 단어가 함께 나타나는 이웃들이 결정한다.</strong> Zellig Harris(1954)가 정식화하고 J. R. Firth(1957)가 “단어는 함께 다니는 친구를 보면 안다”는 문장으로 요약한 생각입니다. ‘커피’와 ‘차’가 비슷하다는 걸 우리가 아는 이유는, 둘 다 <em>마시다·뜨겁다·잔</em> 같은 단어 옆에 나타나기 때문입니다.</p></div>
+
+<p>word2vec의 전략은 여기서 곧장 따라 나옵니다. <strong>“주변 단어를 잘 맞히도록 벡터를 학습시키면, 비슷한 이웃을 갖는 단어끼리 비슷한 벡터를 갖게 된다.”</strong> 의미를 직접 정의하지 않고, 예측 과제를 잘 푸는 부산물로 얻어 내는 것입니다.</p>
+
+<div class="note">word2vec은 Tomáš Mikolov와 동료들이 2013년에 발표한 두 편의 논문과 그에 딸린 C 구현의 이름입니다. 개념적으로 새로운 것은 신경망 언어 모델(Bengio 등, 2003)에서 이미 나왔지만, word2vec은 <strong>불필요한 부분을 모두 걷어내</strong> 수십억 단어를 하루 안에 학습할 수 있게 만들었습니다. 이 “걷어냄”이 무엇이었는지가 3~5절의 내용입니다.</div>
+
+<!-- ═══════════════ 2 ═══════════════ -->
+<h2 id="task">학습 신호 만들기 — 윈도우와 두 가지 과제</h2>
+
+<p>레이블이 붙은 데이터는 필요 없습니다. 텍스트 자체가 정답을 갖고 있기 때문입니다. 문장 위로 <strong>윈도우</strong>를 밀면서, 가운데 단어(중심어)와 그 주변 단어(문맥어)의 쌍을 만들어 내면 그것이 학습 데이터가 됩니다. 이런 방식을 자기 지도 학습(self-supervised)이라 부릅니다.</p>
+
+<p>여기서 방향을 어느 쪽으로 잡느냐에 따라 두 가지 모델이 갈립니다.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>모델</th><th>과제</th><th>특징</th></tr></thead>
+<tbody>
+<tr><td><strong>CBOW</strong><br>(Continuous Bag-of-Words)</td><td>문맥어들 → 중심어 맞히기</td><td>문맥 벡터를 <strong>평균</strong>내어 한 번에 예측. 순서를 무시하므로 “bag of words”. 빠르고, 흔한 단어에서 유리합니다.</td></tr>
+<tr><td><strong>Skip-gram</strong></td><td>중심어 → 문맥어 각각 맞히기</td><td>한 중심어로 여러 개의 예측을 만들어 <strong>학습 신호가 많습니다</strong>. 느리지만 드문 단어와 작은 코퍼스에서 강합니다.</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>실무에서 자주 언급되는 구현 세부 하나. 윈도우 크기 <span class="math">C</span>는 고정이 아니라 매번 <strong>1부터 C 사이에서 무작위로 뽑습니다.</strong> 이렇게 하면 중심어에 가까운 단어일수록 뽑힐 확률이 높아져, 가중치를 따로 주지 않고도 “가까울수록 중요하다”가 자연스럽게 반영됩니다.</p>
+
+<div class="demo">
+  <h4>데모 2 — 윈도우로 학습 쌍 만들기</h4>
+  <p class="cap">문장을 직접 고쳐 보세요. 주황색이 중심어, 파란색이 윈도우 안의 문맥어입니다. 아래에 이 위치에서 생성되는 학습 쌍이 표시됩니다.</p>
+  <div class="ctrls">
+    <div class="ctrl" style="flex:1 1 100%">
+      <label for="i2">문장</label>
+      <input type="text" id="i2" value="the quick brown fox jumps over the lazy dog" spellcheck="false">
+    </div>
+  </div>
+  <div class="sentbox" id="sent2"></div>
+  <div class="ctrls">
+    <div class="ctrl">
+      <label for="s2p">중심어 위치 <b id="v2p">4</b></label>
+      <input type="range" id="s2p" min="1" max="9" step="1" value="4">
+    </div>
+    <div class="ctrl">
+      <label for="s2w">윈도우 크기 C <b id="v2w">2</b></label>
+      <input type="range" id="s2w" min="1" max="5" step="1" value="2">
+    </div>
+  </div>
+  <div class="btns">
+    <button type="button" id="b2sg" aria-pressed="true">Skip-gram</button>
+    <button type="button" id="b2cb">CBOW</button>
+  </div>
+  <div class="pairs" id="pairs2"></div>
+  <div id="st2" class="status"></div>
+  <div class="readout">
+    <div>이 문장에서 나오는 총 학습 쌍<b id="r2n">—</b></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 3 ═══════════════ -->
+<h2 id="arch"><span class="lv lv2"><span class="dot"></span>LEVEL 2 · 학부</span><br>모델 구조 — 행렬 두 개가 전부</h2>
+
+<p>“신경망”이라는 말에 속기 쉽지만, word2vec에는 <strong>은닉층의 비선형 활성화가 없습니다.</strong> 있는 것은 행렬 두 개뿐입니다.</p>
+
+<ul>
+  <li><strong>입력 행렬 <span class="math">W</span></strong> (<span class="math">V×N</span>) — 각 행이 그 단어의 <em>중심어 벡터</em> <span class="math">v<sub>w</sub></span>. 우리가 최종적으로 쓰는 “단어 임베딩”이 보통 이것입니다.</li>
+  <li><strong>출력 행렬 <span class="math">W′</span></strong> (<span class="math">V×N</span>) — 각 행이 그 단어의 <em>문맥어 벡터</em> <span class="math">v′<sub>w</sub></span>. 학습이 끝나면 대개 버려집니다.</li>
+</ul>
+
+<p>원-핫 벡터에 <span class="math">W</span>를 곱하는 것은 사실상 <strong>행 하나를 꺼내 오는 조회(lookup)</strong>일 뿐입니다. 그래서 이 부분에는 곱셈 비용이 거의 없습니다. 예측은 두 벡터의 내적에 소프트맥스를 씌워 만듭니다.</p>
+
+<div class="eq">
+<span class="math">p(w<sub>O</sub> | w<sub>I</sub>) <span class="op">=</span>
+<span class="frac">
+  <span class="n">exp(v′<sub>w<sub>O</sub></sub><sup>⊤</sup> v<sub>w<sub>I</sub></sub>)</span>
+  <span class="d">Σ<sub>w=1..V</sub> exp(v′<sub>w</sub><sup>⊤</sup> v<sub>w<sub>I</sub></sub>)</span>
+</span></span>
+<span class="note">두 벡터가 같은 방향을 향할수록 확률이 커진다. 문제는 분모 — 어휘 전체 V개를 매번 더해야 한다.</span>
+</div>
+
+<p>단어 하나를 예측할 때마다 어휘 전체를 훑어야 한다는 뜻입니다. 어휘가 100만이면 학습 예제 하나에 100만 번의 내적입니다. 코퍼스에 단어가 수십억 개라면 계산이 불가능합니다.</p>
+
+<h3>왜 이렇게까지 단순하게 만들었나</h3>
+
+<p>이전 세대의 신경망 언어 모델(NNLM)은 투사층과 은닉층을 모두 갖고 있었고, 비용의 대부분이 <strong>은닉층</strong>에서 나왔습니다. word2vec은 “좋은 단어 벡터를 얻는 것”만이 목표라면 은닉층이 필요 없다고 보고 이를 제거했습니다. 학습 예제 하나당 비용을 비교하면 이렇습니다.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>모델</th><th>예제 하나당 계산량 Q</th><th>병목</th></tr></thead>
+<tbody>
+<tr><td>NNLM</td><td class="mono">N×D + N×D×H + H×V</td><td>은닉층(N×D×H)과 출력층(H×V)</td></tr>
+<tr><td>RNNLM</td><td class="mono">H×H + H×V</td><td>순환 연결과 출력층</td></tr>
+<tr><td>CBOW</td><td class="mono">N×D + D×log₂(V)</td><td>거의 없음 — 조회 + 트리 경로</td></tr>
+<tr><td>Skip-gram</td><td class="mono">C×(D + D×log₂(V))</td><td>중심어 하나당 C개의 예측</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>여기서 <span class="math">N</span>은 문맥 단어 수, <span class="math">D</span>는 벡터 차원, <span class="math">H</span>는 은닉층 크기, <span class="math">V</span>는 어휘 크기입니다. 핵심은 <strong>V가 log₂V로 바뀌었다</strong>는 점인데, 그것이 바로 다음 절의 이야기입니다.</p>
+
+<div class="demo">
+  <h4>데모 3 — 파라미터와 계산량</h4>
+  <p class="cap">어휘 크기와 벡터 차원을 바꿔 보세요. 저장해야 할 파라미터는 <span class="math">2VN</span>개이고, 학습 예제 하나를 처리하는 비용은 어떤 출력층을 쓰느냐에 따라 <strong>수만 배</strong> 차이가 납니다.</p>
+  <canvas id="c3" height="230"></canvas>
+  <div class="ctrls">
+    <div class="ctrl">
+      <label for="s3v">어휘 크기 V <b id="v3v">100,000</b></label>
+      <input type="range" id="s3v" min="1000" max="1000000" step="1000" value="100000">
+    </div>
+    <div class="ctrl">
+      <label for="s3n">벡터 차원 N <b id="v3n">300</b></label>
+      <input type="range" id="s3n" min="10" max="600" step="10" value="300">
+    </div>
+    <div class="ctrl">
+      <label for="s3k">네거티브 샘플 수 k <b id="v3k">5</b></label>
+      <input type="range" id="s3k" min="2" max="20" step="1" value="5">
+    </div>
+  </div>
+  <div class="readout">
+    <div>총 파라미터 (2VN)<b id="r3p">—</b></div>
+    <div>전체 소프트맥스<b id="r3a">—</b></div>
+    <div>계층적 소프트맥스<b id="r3b">—</b></div>
+    <div>네거티브 샘플링<b id="r3c">—</b></div>
+  </div>
+  <div id="st3" class="status"></div>
+</div>
+
+<!-- ═══════════════ 4 ═══════════════ -->
+<h2 id="cost">소프트맥스가 너무 비싸다</h2>
+
+<p>분모의 합을 없애기 위해 word2vec은 두 가지 해법을 제시합니다. 둘 중 하나를 골라 쓰며, 목적은 같지만 접근이 전혀 다릅니다.</p>
+
+<h3>해법 A — 계층적 소프트맥스 (hierarchical softmax)</h3>
+
+<p>어휘를 <strong>이진 트리의 잎</strong>에 배치합니다. 그러면 “어떤 단어인가”를 한 번에 고르는 대신, 뿌리에서 잎까지 내려가며 <strong>왼쪽이냐 오른쪽이냐</strong>를 연달아 결정하는 문제로 바뀝니다. 깊이가 <span class="math">log₂V</span>이므로 결정도 그만큼만 하면 됩니다.</p>
+
+<div class="eq">
+<span class="math">p(w | w<sub>I</sub>) <span class="op">=</span> ∏<sub>j=1..L(w)−1</sub> σ( ⟦n(w,j+1) = ch(n(w,j))⟧ · v′<sub>n(w,j)</sub><sup>⊤</sup> v<sub>w<sub>I</sub></sub> )</span>
+<span class="note">경로 위의 각 내부 노드마다 시그모이드 한 번. ⟦·⟧는 왼쪽 자식이면 +1, 오른쪽이면 −1을 뜻한다.</span>
+</div>
+
+<p>벡터는 단어가 아니라 <strong>내부 노드</strong>가 갖습니다. 잎이 V개면 내부 노드는 V−1개이므로 파라미터 총량은 그대로지만, 한 번의 갱신에 건드리는 것은 경로 위의 노드들뿐입니다. 트리는 <strong>허프만 코딩</strong>으로 만듭니다. 자주 나오는 단어일수록 뿌리에 가깝게 배치되어 경로가 짧아지고, 그만큼 평균 계산량이 더 줄어듭니다.</p>
+
+<div class="demo">
+  <h4>데모 4 — 허프만 트리와 경로</h4>
+  <p class="cap">단어를 클릭하면 뿌리에서 그 단어까지의 경로가 표시됩니다. 빈도가 높은 단어일수록 <strong>경로가 짧습니다</strong>. 확률은 경로 위 시그모이드 값들의 곱입니다.</p>
+  <div class="scrollx"><canvas id="c4" height="300"></canvas></div>
+  <p class="scrollhint">↔ 트리가 잘려 보이면 가로로 밀어서 볼 수 있습니다.</p>
+  <div id="st4" class="status"></div>
+  <div class="readout">
+    <div>선택한 단어<b id="r4w">—</b></div>
+    <div>경로 길이 (결정 횟수)<b id="r4d">—</b></div>
+    <div>평균 경로 길이<b id="r4a">—</b></div>
+    <div>균등 트리였다면<b id="r4u">—</b></div>
+  </div>
+</div>
+
+<h3>해법 B — 네거티브 샘플링 (negative sampling)</h3>
+
+<p>이쪽은 접근이 훨씬 대담합니다. <strong>확률 분포를 만드는 일을 아예 포기합니다.</strong> 대신 문제를 이렇게 바꿉니다.</p>
+
+<div class="key"><span class="lbl">문제의 재정의</span><p>“이 문맥에서 나올 단어를 <em>모든 후보 중에</em> 고르시오”가 아니라, <strong>“(중심어, 문맥어) 이 쌍은 실제 코퍼스에서 나온 것인가, 아니면 내가 무작위로 지어낸 것인가?”</strong>라는 참/거짓 문제로.</p></div>
+
+<p>진짜 쌍 하나마다 가짜 쌍 <span class="math">k</span>개를 무작위로 만들어 함께 학습시킵니다. 목적 함수는 다음과 같습니다.</p>
+
+<div class="eq">
+<span class="math">log σ(v′<sub>w<sub>O</sub></sub><sup>⊤</sup> v<sub>w<sub>I</sub></sub>) <span class="op">+</span> Σ<sub>i=1..k</sub> E<sub>w<sub>i</sub> ~ P<sub>n</sub></sub> [ log σ(<span class="op">−</span>v′<sub>w<sub>i</sub></sub><sup>⊤</sup> v<sub>w<sub>I</sub></sub>) ]</span>
+<span class="note">진짜 쌍의 내적은 키우고(σ→1), 가짜 쌍 k개의 내적은 낮춘다(σ(−·)→1).</span>
+</div>
+
+<p>한 번의 갱신에 손대는 벡터는 <span class="math">k<span class="op">+</span><span class="num">1</span></span>개뿐입니다. V가 100만이든 1000만이든 상관없습니다. 논문이 권하는 값은 <strong>작은 데이터셋에서 k = 5~20, 큰 데이터셋에서 k = 2~5</strong>입니다.</p>
+
+<h4>가짜 단어는 어떻게 뽑는가</h4>
+
+<p>여기에 word2vec에서 가장 유명한 “실험으로 찾은 수치”가 등장합니다. 가짜 단어를 그냥 빈도대로 뽑으면 <code>the</code>, <code>of</code> 같은 단어만 계속 뽑히고, 균등하게 뽑으면 희귀어가 지나치게 자주 뽑힙니다. word2vec은 그 중간을 택합니다 — <strong>빈도의 3/4 제곱</strong>에 비례해 뽑습니다.</p>
+
+<div class="eq">
+<span class="math">P<sub>n</sub>(w) <span class="op">=</span>
+<span class="frac"><span class="n">f(w)<sup>3/4</sup></span><span class="d">Σ<sub>j</sub> f(w<sub>j</sub>)<sup>3/4</sup></span></span></span>
+<span class="note">3/4는 이론에서 유도된 값이 아니라 여러 값을 시험해 가장 잘 작동한 것이다.</span>
+</div>
+
+<div class="demo">
+  <h4>데모 5 — 3/4 제곱이 하는 일</h4>
+  <p class="cap">지수 α를 움직여 보세요. <span class="math">α<span class="op">=</span><span class="num">1</span></span>은 원래 빈도 그대로, <span class="math">α<span class="op">=</span><span class="num">0</span></span>은 완전 균등입니다. 0.75에서는 흔한 단어의 비중이 줄고 <strong>드문 단어가 뽑힐 기회가 늘어납니다</strong>.</p>
+  <div class="scrollx"><canvas id="c5" height="250"></canvas></div>
+  <p class="scrollhint">↔ 그래프가 잘려 보이면 가로로 밀어서 볼 수 있습니다.</p>
+  <div class="ctrls">
+    <div class="ctrl">
+      <label for="s5a">지수 α <b id="v5a">0.75</b></label>
+      <input type="range" id="s5a" min="0" max="1" step="0.05" value="0.75">
+    </div>
+  </div>
+  <div class="btns">
+    <button type="button" data-a="1">1 (빈도 그대로)</button>
+    <button type="button" data-a="0.75">0.75 (word2vec)</button>
+    <button type="button" data-a="0">0 (균등)</button>
+  </div>
+  <div class="readout">
+    <div>최빈어 the의 선택 확률<b id="r5t">—</b></div>
+    <div>희귀어 quantum의 선택 확률<b id="r5q">—</b></div>
+    <div>두 확률의 비<b id="r5r">—</b></div>
+  </div>
+</div>
+
+<div class="note"><strong>두 방법 중 무엇을 쓸까.</strong> 계층적 소프트맥스는 드문 단어에서 상대적으로 유리하고, 네거티브 샘플링은 흔한 단어와 저차원 벡터에서 잘 작동하며 구현이 간단합니다. 오늘날 대부분의 구현에서 기본값은 <strong>네거티브 샘플링(SGNS, Skip-Gram with Negative Sampling)</strong>입니다.</div>
+
+<!-- ═══════════════ 5 ═══════════════ -->
+<h2 id="sub">흔한 단어는 덜 보기 — 서브샘플링</h2>
+
+<p>코퍼스에서 <code>the</code>는 수억 번 등장합니다. 그런데 “<code>the</code>가 <code>France</code> 옆에 나온다”는 사실은 거의 아무것도 알려 주지 않습니다. 반면 “<code>Paris</code>가 <code>France</code> 옆에 나온다”는 정보량이 큽니다. 흔한 단어는 <strong>학습 시간을 잡아먹으면서 정보는 적게</strong> 주는 셈입니다.</p>
+
+<p>그래서 word2vec은 학습 전에 각 단어를 빈도에 따라 확률적으로 <strong>버립니다</strong>.</p>
+
+<div class="eq">
+<span class="math">P(버림) <span class="op">=</span> <span class="num">1</span> <span class="op">−</span> <span class="rt"><span>&nbsp;t / f(w)&nbsp;</span></span></span>
+<span class="note">f(w)는 코퍼스에서 그 단어가 차지하는 비율, t는 임계값(보통 10⁻⁵ 근처). f(w) ≤ t이면 버리지 않는다.</span>
+</div>
+
+<p>부수 효과가 하나 더 있습니다. 흔한 단어가 빠지면 남은 단어들 사이의 거리가 가까워져서 <strong>윈도우가 실질적으로 넓어집니다</strong>. 계산은 줄고 신호는 좋아지는, 흔치 않은 조합입니다.</p>
+
+<div class="demo">
+  <h4>데모 6 — 어떤 단어가 얼마나 버려지는가</h4>
+  <p class="cap">임계값 t를 조절해 보세요. 가로축은 코퍼스 내 빈도 비율(로그 스케일)이고 세로축은 버릴 확률입니다. 점은 실제 영어 코퍼스에서의 대략적인 빈도로 배치한 예시 단어들입니다.</p>
+  <div class="scrollx"><canvas id="c6" height="270"></canvas></div>
+  <p class="scrollhint">↔ 그래프가 잘려 보이면 가로로 밀어서 볼 수 있습니다.</p>
+  <div class="ctrls">
+    <div class="ctrl">
+      <label for="s6t">임계값 t <b id="v6t">1e-5</b></label>
+      <input type="range" id="s6t" min="-6" max="-2" step="0.1" value="-5">
+    </div>
+  </div>
+  <div class="readout">
+    <div>the (약 7%)<b id="r6a">—</b></div>
+    <div>time (약 0.1%)<b id="r6b">—</b></div>
+    <div>quantum (약 0.0005%)<b id="r6c">—</b></div>
+  </div>
+</div>
+
+<!-- ═══════════════ 6 ═══════════════ -->
+<h2 id="train"><span class="lv lv2"><span class="dot"></span>실습</span><br>직접 학습시켜 보기</h2>
+
+<p>이제 실제로 돌려 봅시다. 아래 데모는 설명용 애니메이션이 아니라 <strong>브라우저에서 진짜로 SGNS를 학습</strong>합니다. 윈도우로 쌍을 만들고, 3/4 제곱 분포에서 네거티브를 뽑고, 확률적 경사 하강법으로 두 행렬을 갱신합니다.</p>
+
+<p>코퍼스는 규칙성이 뚜렷한 작은 문장 모음입니다. 실제 코퍼스는 수십억 단어지만, 원리를 눈으로 보기에는 이 정도가 오히려 낫습니다.</p>
+
+<div class="demo">
+  <h4>데모 7 — 브라우저에서 학습하는 word2vec</h4>
+  <p class="cap"><strong>▶ 학습 시작</strong>을 누르면 손실이 떨어지면서 단어들이 자리를 잡습니다. 화면의 2D 좌표는 학습된 고차원 벡터를 <strong>주성분 2개로 투영</strong>한 것입니다. 단어를 클릭하면 코사인 유사도 기준 가장 가까운 이웃이 표시됩니다.</p>
+  <div class="scrollx"><canvas id="c7" height="360"></canvas></div>
+  <p class="scrollhint">↔ 단어 지도가 잘려 보이면 가로로 밀어서 볼 수 있습니다.</p>
+  <div class="ctrls">
+    <div class="ctrl">
+      <label for="s7d">벡터 차원 N <b id="v7d">24</b></label>
+      <input type="range" id="s7d" min="4" max="48" step="4" value="24">
+    </div>
+    <div class="ctrl">
+      <label for="s7w">윈도우 C <b id="v7w">2</b></label>
+      <input type="range" id="s7w" min="1" max="5" step="1" value="2">
+    </div>
+    <div class="ctrl">
+      <label for="s7k">네거티브 k <b id="v7k">6</b></label>
+      <input type="range" id="s7k" min="1" max="15" step="1" value="6">
+    </div>
+    <div class="ctrl">
+      <label for="s7e">에폭 <b id="v7e">200</b></label>
+      <input type="range" id="s7e" min="20" max="600" step="20" value="200">
+    </div>
+  </div>
+  <div class="btns">
+    <button type="button" id="b7run" class="primary">▶ 학습 시작</button>
+    <button type="button" id="b7reset">초기화</button>
+    <button type="button" id="b7sub" aria-pressed="true">서브샘플링 켬</button>
+    <button type="button" id="b7corpus">코퍼스 보기/숨기기</button>
+  </div>
+  <div id="corpusBox" style="display:none;margin-top:12px">
+    <textarea id="t7" rows="8" spellcheck="false"></textarea>
+    <p class="cap" style="margin:6px 0 0">한 줄이 한 문장입니다. 직접 고쳐서 학습시켜 볼 수 있습니다.</p>
+  </div>
+  <div id="st7" class="status"></div>
+  <div class="readout">
+    <div>어휘 크기<b id="r7v">—</b></div>
+    <div>학습 쌍<b id="r7p">—</b></div>
+    <div>진행<b id="r7e">—</b></div>
+    <div>평균 손실<b id="r7l">—</b></div>
+  </div>
+  <div class="nbr" id="nbr7"></div>
+</div>
+
+<div class="key"><span class="lbl">무엇을 보아야 하나</span><p>학습이 끝나면 <strong>king·queen·prince·princess</strong>가 한쪽에, <strong>man·woman·boy·girl</strong>이 다른 쪽에 모입니다. 아무도 “왕족”이나 “성별”이라는 범주를 알려 주지 않았는데도 그렇습니다. 오직 <em>“어떤 단어 옆에 나타났는가”</em>만으로 얻은 결과입니다.</p></div>
+
+<!-- ═══════════════ 7 ═══════════════ -->
+<h2 id="analogy">벡터 산술과 유추</h2>
+
+<p>word2vec을 유명하게 만든 것은 유사도가 아니라 <strong>덧셈과 뺄셈이 의미를 갖는다</strong>는 발견이었습니다.</p>
+
+<div class="eq">
+<span class="math">v(king) <span class="op">−</span> v(man) <span class="op">+</span> v(woman) ≈ v(queen)</span>
+<span class="note">“a는 b에 대해, c는 ?에 대해” 형태의 유추를 벡터 연산으로 푼다. 답은 결과 벡터에 코사인 유사도가 가장 가까운 단어(질문에 쓰인 세 단어는 제외).</span>
+</div>
+
+<p>왜 이런 일이 벌어질까요? 학습이 끝난 공간에서 <strong>“성별을 바꾼다”는 조작이 하나의 고정된 방향 벡터로 표현되기 때문</strong>입니다. king과 queen을 가르는 차이, man과 woman을 가르는 차이가 거의 같은 방향·같은 크기라면, 그 차이를 빼고 더하는 것으로 다른 단어쌍에도 같은 조작을 적용할 수 있습니다. 이런 규칙성은 의미 관계(나라–수도)뿐 아니라 문법 관계(원형–과거형, 단수–복수, 형용사–비교급)에서도 나타납니다.</p>
+
+<div class="demo">
+  <h4>데모 8 — 유추 계산기</h4>
+  <p class="cap">데모 7에서 <strong>방금 학습한 벡터</strong>로 계산합니다(먼저 학습을 돌려 주세요). 오른쪽 그림은 네 단어가 이루는 평행사변형입니다 — 두 화살표가 나란할수록 유추가 잘 작동합니다.</p>
+  <div class="anrow">
+    <select id="a1"></select><span class="opx">−</span>
+    <select id="a2"></select><span class="opx">+</span>
+    <select id="a3"></select><span class="opx">=</span>
+    <strong id="ares" style="font-size:17px;color:var(--s2)">?</strong>
+  </div>
+  <div class="btns">
+    <button type="button" class="apre" data-a="king" data-b="man" data-c="woman">king − man + woman</button>
+    <button type="button" class="apre" data-a="prince" data-b="boy" data-c="girl">prince − boy + girl</button>
+    <button type="button" class="apre" data-a="father" data-b="man" data-c="woman">father − man + woman</button>
+    <button type="button" class="apre" data-a="queen" data-b="woman" data-c="man">queen − woman + man</button>
+  </div>
+  <div class="scrollx"><canvas id="c8" height="260"></canvas></div>
+  <div class="nbr" id="nbr8"></div>
+  <div id="st8" class="status"></div>
+</div>
+
+<div class="note"><strong>과대평가는 금물.</strong> 유추가 항상 깔끔하게 성립하지는 않습니다. 정답 후보에서 질문에 쓰인 세 단어를 제외하는 관행 때문에 실제보다 잘 되는 것처럼 보인다는 지적도 있고, 관계에 따라 정확도 편차도 큽니다. 위 데모의 코퍼스는 수십 문장에 불과하므로 더욱 그렇습니다 — 잘 되는 쌍과 안 되는 쌍을 함께 보는 편이 정직합니다.</div>
+
+<h3>유추 평가 데이터셋</h3>
+
+<p>Mikolov 등은 이 능력을 재기 위해 약 2만 문항의 평가 집합을 함께 공개했습니다. 구성은 크게 둘입니다.</p>
+
+<ul>
+  <li><strong>의미(semantic) 관계</strong> — 나라–수도(Athens : Greece), 나라–통화, 주–도시, 가족 관계(brother : sister) 등 다섯 종류, 약 8,900문항</li>
+  <li><strong>문법(syntactic) 관계</strong> — 형용사–부사, 반의어, 비교급, 최상급, 현재분사, 국가–국적형용사, 과거형, 명사 복수, 동사 3인칭 단수 등 아홉 종류, 약 10,700문항</li>
+</ul>
+
+<p>채점은 엄격합니다. <strong>가장 가까운 단어 하나가 정확히 정답일 때만</strong> 맞은 것으로 칩니다. 이 기준에서 word2vec은 이전 세대 모델들을 큰 폭으로 앞섰고, 특히 <strong>훈련 데이터와 벡터 차원을 함께 키울 때</strong> 정확도가 계속 올라간다는 점을 보였습니다. 둘 중 하나만 키우면 곧 정체됩니다.</p>
+
+<!-- ═══════════════ 8 ═══════════════ -->
+<h2 id="phrase"><span class="lv lv3"><span class="dot"></span>LEVEL 3 · 심화</span><br>구(phrase) 학습과 가법적 구성성</h2>
+
+<p><code>New York</code>은 <code>new</code>와 <code>york</code>의 의미를 합친 것이 아니고, <code>Air Canada</code>도 마찬가지입니다. 이런 표현은 <strong>하나의 토큰</strong>으로 다뤄야 합니다. word2vec은 여기에도 아주 단순한 통계적 방법을 씁니다.</p>
+
+<div class="eq">
+<span class="math">score(w<sub>i</sub>, w<sub>j</sub>) <span class="op">=</span>
+<span class="frac">
+  <span class="n">count(w<sub>i</sub>w<sub>j</sub>) <span class="op">−</span> δ</span>
+  <span class="d">count(w<sub>i</sub>) × count(w<sub>j</sub>)</span>
+</span></span>
+<span class="note">δ는 할인 계수 — 어쩌다 한두 번 붙어 나온 조합이 높은 점수를 받는 것을 막는다. 점수가 문턱을 넘으면 두 단어를 하나로 합친다.</span>
+</div>
+
+<p>분자는 “같이 나온 횟수”, 분모는 “각자 얼마나 흔한가”입니다. 그래서 <code>this is</code>처럼 둘 다 흔한 조합은 자주 붙어 나와도 점수가 낮고, <code>New York</code>처럼 <em>따로는 덜 쓰이는데 붙어서 자주 나오는</em> 조합이 높은 점수를 받습니다.</p>
+
+<p>이 과정을 <strong>2~4번 반복</strong>하면 세 단어, 네 단어짜리 표현도 잡힙니다. 매 회차마다 문턱값을 낮추면서 더 긴 구를 허용하는 식입니다. 구까지 포함해 학습하면 “나라 : 수도”처럼 여러 단어로 된 대상에 대해서도 유추가 가능해집니다.</p>
+
+<div class="demo">
+  <h4>데모 9 — 어떤 조합이 하나의 구가 되는가</h4>
+  <p class="cap">미니 코퍼스에서 계산한 바이그램 점수입니다. 할인 계수 δ와 문턱값을 조절해 보세요. 초록색 행이 <strong>하나의 토큰으로 합쳐질</strong> 조합입니다.</p>
+  <div class="ctrls">
+    <div class="ctrl">
+      <label for="s9d">할인 계수 δ <b id="v9d">1.0</b></label>
+      <input type="range" id="s9d" min="0" max="5" step="0.5" value="1">
+    </div>
+    <div class="ctrl">
+      <label for="s9t">문턱값 <b id="v9t">14</b></label>
+      <input type="range" id="s9t" min="2" max="60" step="1" value="14">
+    </div>
+  </div>
+  <div class="tw" id="tw9"></div>
+  <div id="st9" class="status"></div>
+</div>
+
+<h3>가법적 구성성</h3>
+
+<p>학습된 벡터에는 예상 밖의 성질이 하나 더 있습니다. <strong>단순히 더하기만 해도 의미가 결합됩니다.</strong> “Czech + currency”에 가장 가까운 단어가 체코의 화폐 단위이고, “Vietnam + capital”이 하노이를 가리키는 식입니다.</p>
+
+<p>이유는 목적 함수의 형태에 있습니다. 단어 벡터는 문맥 분포의 <strong>로그 확률</strong>과 선형적으로 관계 맺도록 학습됩니다. 로그 공간에서의 덧셈은 확률 공간에서의 곱이므로, 두 벡터를 더하는 것은 두 문맥 분포를 <strong>곱하는 것(AND)</strong>에 해당합니다. 두 단어 모두와 자주 어울리는 단어가 가장 높은 점수를 받게 되는 것입니다.</p>
+
+<!-- ═══════════════ 9 ═══════════════ -->
+<h2 id="after">그 뒤에 무슨 일이 있었나</h2>
+
+<ul>
+  <li><strong>GloVe</strong> (Pennington 등, 2014) — 윈도우를 훑는 대신 <em>전역 동시 등장 행렬</em>을 먼저 만들고 그것을 분해합니다. 목표는 같지만 계산 방식이 다릅니다.</li>
+  <li><strong>암묵적 행렬 분해</strong> (Levy &amp; Goldberg, 2014) — 놀랍게도 SGNS는 <em>단어–문맥 PMI 행렬에서 log k를 뺀 것</em>을 분해하는 것과 사실상 같다는 점이 증명되었습니다. “예측 모델”과 “카운트 모델”이 결국 한 뿌리였다는 결론입니다.</li>
+  <li><strong>하이퍼파라미터가 절반</strong> (Levy 등, 2015) — 모델 간 성능 차이의 상당 부분은 알고리즘이 아니라 윈도우 크기·서브샘플링·네거티브 개수 같은 설정과 전처리에서 온다는 대규모 비교 결과입니다.</li>
+  <li><strong>fastText</strong> (Bojanowski 등, 2017) — 단어를 문자 n-gram의 합으로 표현해, 학습 때 못 본 단어(OOV)와 형태 변화가 심한 언어(한국어 포함)에 대응합니다.</li>
+  <li><strong>편향 문제</strong> (Bolukbasi 등, 2016) — 유추가 잘 작동한다는 말은 코퍼스의 편견도 그대로 학습된다는 뜻입니다. 직업·성별 축에서 사회적 고정관념이 벡터에 그대로 남아 있음이 확인되었습니다.</li>
+  <li><strong>문맥 임베딩으로</strong> — word2vec은 단어 하나에 벡터 하나를 줍니다. 그래서 “배”가 과일인지 선박인지 구분하지 못합니다. ELMo·BERT 이후로는 <em>문장마다 달라지는</em> 벡터가 표준이 되었습니다(<a href="https://dev-jonghoonpark.github.io/how-attention-works/" target="_blank" rel="noopener">how-attention-works</a>).</li>
+</ul>
+
+<p>그럼에도 word2vec을 지금 배우는 이유는, <strong>“예측 과제를 잘 풀게 하면 표현이 따라온다”</strong>는 발상 자체가 현대 언어 모델의 출발점이기 때문입니다. 오늘날의 거대 모델도 결국은 훨씬 큰 규모로 같은 일을 합니다 — 다음 토큰을 맞히게 하고, 그 부산물로 얻은 표현을 사용하는 것입니다.</p>
+
+<!-- ═══════════════ 10 ═══════════════ -->
+<h2 id="wrap">핵심 정리</h2>
+
+<div class="card">
+<ol>
+<li><strong>분포 가설</strong> — 함께 나타나는 이웃이 같으면 의미도 비슷하다. word2vec은 이 가설을 예측 과제로 번역한 것이다.</li>
+<li><strong>두 가지 과제</strong> — CBOW(문맥 → 중심어)는 빠르고, Skip-gram(중심어 → 문맥어)은 신호가 많아 드문 단어에 강하다.</li>
+<li><strong>구조</strong> — 은닉층 없이 행렬 두 개(<span class="math">W</span>, <span class="math">W′</span>). 입력 쪽 행이 우리가 쓰는 임베딩이다.</li>
+<li><strong>비용 문제</strong> — 소프트맥스 분모가 V에 비례한다. 계층적 소프트맥스는 <span class="math">log₂V</span>번의 이진 결정으로, 네거티브 샘플링은 <span class="math">k<span class="op">+</span><span class="num">1</span></span>번의 참·거짓 판정으로 바꾼다.</li>
+<li><strong>3/4 제곱</strong> — 네거티브를 뽑는 분포. 흔한 단어를 누르고 드문 단어를 올리는 경험적 절충.</li>
+<li><strong>서브샘플링</strong> — <span class="math">P <span class="op">=</span> <span class="num">1</span> <span class="op">−</span> <span class="rt"><span>t/f(w)</span></span></span>로 흔한 단어를 버린다. 속도와 품질을 동시에 얻는다.</li>
+<li><strong>벡터 산술</strong> — 의미·문법 관계가 일정한 방향 벡터로 나타나기에 유추가 성립한다. 다만 만능은 아니다.</li>
+<li><strong>구 학습</strong> — 동시 등장 빈도를 각자의 빈도로 나눈 점수로 <code>New York</code> 같은 표현을 하나의 토큰으로 만든다.</li>
+<li><strong>그 이후</strong> — SGNS는 PMI 행렬 분해와 같고, 하이퍼파라미터가 성능의 절반이며, 문맥 임베딩이 그 뒤를 이었다.</li>
+</ol>
+</div>
+
+<h3>이해도 확인</h3>
+<div id="quiz"></div>
+<p class="quiz-score" id="quizScore"></p>
+
+<footer>
+<p><strong>이 자료에 대하여</strong><br>
+Tomáš Mikolov 등의 word2vec 논문 두 편이 다루는 개념을 기준으로, 본문·그림·데모를 한국어 학습용으로 새로 작성했습니다. 데모 7의 학습기는 설명용 애니메이션이 아니라 브라우저에서 실제로 도는 SGNS 구현입니다.</p>
+<p><strong>참고 문헌</strong></p>
+<ul class="refs">
+<li>Harris (1954), <em>Distributional Structure</em> · Firth (1957) — 분포 가설</li>
+<li>Bengio 등 (2003), <em>A Neural Probabilistic Language Model</em> — 신경망 언어 모델</li>
+<li>Mikolov, Chen, Corrado &amp; Dean (2013), <em>Efficient Estimation of Word Representations in Vector Space</em> — <a href="https://arxiv.org/abs/1301.3781" target="_blank" rel="noopener">arXiv:1301.3781</a> · CBOW와 Skip-gram, 유추 평가 집합</li>
+<li>Mikolov, Sutskever, Chen, Corrado &amp; Dean (2013), <em>Distributed Representations of Words and Phrases and their Compositionality</em> — <a href="https://arxiv.org/abs/1310.4546" target="_blank" rel="noopener">arXiv:1310.4546</a> · 네거티브 샘플링, 서브샘플링, 구 학습</li>
+<li>Goldberg &amp; Levy (2014), <em>word2vec Explained</em> · Rong (2014), <em>word2vec Parameter Learning Explained</em> — 유도 과정 해설</li>
+<li>Levy &amp; Goldberg (2014), <em>Neural Word Embedding as Implicit Matrix Factorization</em></li>
+<li>Pennington, Socher &amp; Manning (2014), <em>GloVe</em></li>
+<li>Levy, Goldberg &amp; Dagan (2015), <em>Improving Distributional Similarity with Lessons Learned from Word Embeddings</em></li>
+<li>Bolukbasi 등 (2016), <em>Man is to Computer Programmer as Woman is to Homemaker?</em></li>
+<li>Bojanowski, Grave, Joulin &amp; Mikolov (2017), <em>Enriching Word Vectors with Subword Information</em> — fastText</li>
+</ul>
+<p style="margin-top:18px"><a href="https://github.com/dev-jonghoonpark/how-ai-works">how-ai-works</a> 시리즈 · 인터랙티브 데모 9종 · 모든 계산은 브라우저에서 실시간으로 이루어집니다.</p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ────────── 공통 ────────── */
+function $(s){ return document.querySelector(s); }
+function C(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function fit(cv){
+  var dpr=Math.min(window.devicePixelRatio||1,2);
+  if(!cv.dataset.baseH) cv.dataset.baseH=cv.getAttribute('height');
+  var w=cv.clientWidth, h=parseInt(cv.dataset.baseH,10);
+  cv.width=Math.round(w*dpr); cv.height=Math.round(h*dpr);
+  cv.style.height=h+'px';
+  var g=cv.getContext('2d');
+  g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,w,h);
+  return {g:g,w:w,h:h};
+}
+function label(g,t,x,y,col,size,align){
+  g.fillStyle=col; g.font=(size||11)+'px system-ui,-apple-system,sans-serif';
+  g.textAlign=align||'left'; g.textBaseline='alphabetic'; g.fillText(t,x,y);
+}
+function mono(g,t,x,y,col,size,align){
+  g.fillStyle=col; g.font=(size||11)+'px ui-monospace,SFMono-Regular,Menlo,monospace';
+  g.textAlign=align||'left'; g.textBaseline='alphabetic'; g.fillText(t,x,y);
+}
+function dot(g,x,y,r,fill,ring){
+  g.beginPath(); g.arc(x,y,r,0,6.2832); g.fillStyle=fill; g.fill();
+  if(ring){ g.lineWidth=1.8; g.strokeStyle=ring; g.stroke(); }
+}
+function rrect(g,x,y,w,h,r){ g.beginPath(); if(g.roundRect) g.roundRect(x,y,w,h,r); else g.rect(x,y,w,h); }
+function line(g,x1,y1,x2,y2,col,lw,dash){
+  g.save(); if(dash) g.setLineDash(dash);
+  g.strokeStyle=col; g.lineWidth=lw||1.5;
+  g.beginPath(); g.moveTo(x1,y1); g.lineTo(x2,y2); g.stroke(); g.restore();
+}
+function arrow(g,x1,y1,x2,y2,col,lw){
+  line(g,x1,y1,x2,y2,col,lw);
+  var a=Math.atan2(y2-y1,x2-x1), s=6;
+  g.fillStyle=col; g.beginPath(); g.moveTo(x2,y2);
+  g.lineTo(x2-s*Math.cos(a-0.42), y2-s*Math.sin(a-0.42));
+  g.lineTo(x2-s*Math.cos(a+0.42), y2-s*Math.sin(a+0.42));
+  g.closePath(); g.fill();
+}
+function setStatus(el,kind,text){
+  var map={ok:['var(--good)','✓'],warn:['var(--warn)','◈'],bad:['var(--s8)','✕'],info:['var(--s1)','●']};
+  var m=map[kind]; el.style.color=m[0]; el.style.borderColor=m[0];
+  el.innerHTML='<span class="ico">'+m[1]+'</span>'+text;
+}
+function fmt(n){ return Math.round(n).toLocaleString('ko-KR'); }
+function sig(z){ return 1/(1+Math.exp(-z)); }
+function cos(a,b){
+  var d=0,na=0,nb=0;
+  for(var i=0;i<a.length;i++){ d+=a[i]*b[i]; na+=a[i]*a[i]; nb+=b[i]*b[i]; }
+  return (na&&nb) ? d/Math.sqrt(na*nb) : 0;
+}
+function sup10(d){
+  return '10'+String(d).replace('-','⁻').replace(/[0-9]/g,function(c){ return '⁰¹²³⁴⁵⁶⁷⁸⁹'[+c]; });
+}
+
+/* ────────── 테마 ────────── */
+var tbtn=$('#themeBtn');
+if(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  document.documentElement.setAttribute('data-theme','dark');
+function syncBtn(){
+  var d=document.documentElement.getAttribute('data-theme')==='dark';
+  tbtn.textContent=d?'◑ 라이트':'◐ 다크';
+}
+tbtn.addEventListener('click',function(){
+  var d=document.documentElement.getAttribute('data-theme')==='dark';
+  document.documentElement.setAttribute('data-theme', d?'light':'dark');
+  syncBtn(); drawAll();
+});
+syncBtn();
+
+/* ══════════════ 데모 1 : 원-핫 vs 밀집 ══════════════ */
+var D1W=['dog','cat','puppy','budget'];
+var D1D=[[0.90,0.80,0.10,0.20,-0.30],[0.85,0.75,0.15,0.10,-0.25],
+         [0.95,0.70,0.05,0.30,-0.35],[-0.20,0.10,0.90,-0.40,0.60]];
+function draw1(){
+  var e=fit($('#c1')), g=e.g, w=e.w, h=e.h;
+  var lw=76, cell=Math.min(30,(w*0.44-lw)/6), gapY=16;
+  function grid(y0,title,cols,val,fmtv){
+    label(g,title,4,y0-6,C('--muted'),11.5);
+    for(var r=0;r<4;r++){
+      label(g,D1W[r],lw-8,y0+r*(cell+3)+cell*0.68,C('--text-secondary'),12,'end');
+      for(var c=0;c<cols;c++){
+        var v=val(r,c), x=lw+c*(cell+3), y=y0+r*(cell+3);
+        rrect(g,x,y,cell,cell,4);
+        g.fillStyle = v>0 ? C('--s1') : (v<0 ? C('--s2') : C('--page'));
+        g.globalAlpha = v===0 ? 1 : Math.min(1,0.18+Math.abs(v)*0.8);
+        g.fill(); g.globalAlpha=1;
+        g.strokeStyle=C('--border'); g.lineWidth=1; g.stroke();
+        if(fmtv) mono(g, v.toFixed(1).replace('0.','.'), x+cell/2, y+cell*0.66,
+          Math.abs(v)>0.55?'#fff':C('--text-secondary'), Math.min(10,cell*0.38),'center');
+      }
+    }
+  }
+  grid(28,'원-핫 (어휘 6개 중 4개)',6,function(r,c){ return r===c?1:0; },true);
+  grid(28+4*(cell+3)+42,'학습된 밀집 벡터 (5차원)',5,function(r,c){ return D1D[r][c]; },true);
+
+  /* 유사도 표 */
+  var ox=Math.max(w*0.50, lw+6*(cell+3)+24);
+  label(g,'코사인 유사도',ox,16,C('--muted'),11.5);
+  var pairs=[[0,1],[0,2],[0,3],[1,3]];
+  var oh=[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+  label(g,'단어쌍',ox,36,C('--text-secondary'),11.5);
+  label(g,'원-핫',ox+120,36,C('--text-secondary'),11.5,'end');
+  label(g,'밀집',ox+190,36,C('--text-secondary'),11.5,'end');
+  line(g,ox,42,Math.min(w-6,ox+200),42,C('--border'),1);
+  pairs.forEach(function(p,i){
+    var y=60+i*26;
+    label(g,D1W[p[0]]+' · '+D1W[p[1]],ox,y,C('--text-primary'),12.5);
+    mono(g,cos(oh[p[0]],oh[p[1]]).toFixed(2),ox+120,y,C('--s8'),12.5,'end');
+    var cv=cos(D1D[p[0]],D1D[p[1]]);
+    mono(g,cv.toFixed(2),ox+190,y,cv>0.5?C('--good'):C('--muted'),12.5,'end');
+  });
+  label(g,'원-핫은 언제나 0 — 모든 단어가',ox,h-26,C('--muted'),11);
+  label(g,'서로에게 “완전한 타인”이다',ox,h-10,C('--muted'),11);
+  setStatus($('#st1'),'info','밀집 벡터에서는 dog·puppy가 '+cos(D1D[0],D1D[2]).toFixed(2)+', dog·budget이 '+cos(D1D[0],D1D[3]).toFixed(2)+' — 관계가 숫자로 남습니다');
+}
+
+/* ══════════════ 데모 2 : 윈도우 ══════════════ */
+var i2=$('#i2'), s2p=$('#s2p'), s2w=$('#s2w'), sg2=true;
+function draw2(){
+  var toks=i2.value.trim().split(/\s+/).filter(Boolean);
+  if(!toks.length) toks=['(빈 문장)'];
+  s2p.max=Math.max(0,toks.length-1);
+  var p=Math.min(+s2p.value, toks.length-1), c=+s2w.value;
+  $('#v2p').textContent=p; $('#v2w').textContent=c;
+  var box=$('#sent2'); box.innerHTML='';
+  toks.forEach(function(t,i){
+    var sp=document.createElement('span');
+    sp.className='tok'+(i===p?' ctr':(Math.abs(i-p)<=c?' win':''));
+    sp.textContent=t; box.appendChild(sp);
+    box.appendChild(document.createTextNode(' '));
+  });
+  var ctx=[];
+  for(var j=Math.max(0,p-c); j<=Math.min(toks.length-1,p+c); j++) if(j!==p) ctx.push(toks[j]);
+  var pb=$('#pairs2'); pb.innerHTML='';
+  if(sg2){
+    ctx.forEach(function(t){
+      var d=document.createElement('div'); d.className='pair';
+      d.innerHTML='입력 <b>'+toks[p]+'</b> → 정답 '+t; pb.appendChild(d);
+    });
+  } else {
+    var d=document.createElement('div'); d.className='pair';
+    d.innerHTML='입력 ['+ctx.join(', ')+'] → 정답 <b>'+toks[p]+'</b>'; pb.appendChild(d);
+  }
+  var tot=0;
+  for(var k=0;k<toks.length;k++){
+    var n=Math.min(toks.length-1,k+c)-Math.max(0,k-c);
+    tot += sg2 ? n : (n>0?1:0);
+  }
+  $('#r2n').textContent=tot+' 개';
+  setStatus($('#st2'), sg2?'info':'ok',
+    sg2 ? 'Skip-gram — 중심어 하나로 '+ctx.length+'개의 학습 예제가 만들어집니다'
+        : 'CBOW — 문맥 '+ctx.length+'개의 벡터를 평균내어 중심어 하나를 맞힙니다');
+}
+[i2,s2p,s2w].forEach(function(el){ el.addEventListener('input',draw2); });
+$('#b2sg').addEventListener('click',function(){
+  sg2=true; this.setAttribute('aria-pressed','true'); $('#b2cb').setAttribute('aria-pressed','false'); draw2();
+});
+$('#b2cb').addEventListener('click',function(){
+  sg2=false; this.setAttribute('aria-pressed','true'); $('#b2sg').setAttribute('aria-pressed','false'); draw2();
+});
+
+/* ══════════════ 데모 3 : 비용 ══════════════ */
+var s3v=$('#s3v'), s3n=$('#s3n'), s3k=$('#s3k');
+function draw3(){
+  var V=+s3v.value, N=+s3n.value, k=+s3k.value;
+  $('#v3v').textContent=fmt(V); $('#v3n').textContent=N; $('#v3k').textContent=k;
+  var rows=[
+    {n:'전체 소프트맥스', v:V*N, s:'V × N', c:'--s8'},
+    {n:'계층적 소프트맥스', v:Math.log2(V)*N, s:'log₂V × N', c:'--s3'},
+    {n:'네거티브 샘플링', v:(k+1)*N, s:'(k+1) × N', c:'--s1'}
+  ];
+  var e=fit($('#c3')), g=e.g, w=e.w, h=e.h;
+  var pl=Math.min(126,w*0.32), pr=16, pt=26, rowH=(h-pt-16)/3;
+  var mx=Math.log10(rows[0].v), mn=0;
+  rows.forEach(function(r,i){
+    var y=pt+i*rowH;
+    label(g,r.n,pl-10,y+rowH*0.42,C('--text-primary'),13,'end');
+    label(g,r.s,pl-10,y+rowH*0.42+15,C('--muted'),10.5,'end');
+    var t=(Math.log10(Math.max(r.v,1))-mn)/(mx-mn);
+    var len=Math.max(3,t*(w-pl-pr-92));
+    g.fillStyle=C(r.c); rrect(g,pl,y+rowH*0.42-13,len,24,4); g.fill();
+    label(g,fmt(r.v)+' 곱셈',pl+len+8,y+rowH*0.42+5,C('--text-primary'),12);
+  });
+  label(g,'학습 예제 하나를 처리하는 비용 (막대는 로그 스케일)',4,15,C('--muted'),10.5);
+  $('#r3p').textContent=fmt(2*V*N);
+  $('#r3a').textContent=fmt(V*N);
+  $('#r3b').textContent=fmt(Math.log2(V)*N);
+  $('#r3c').textContent=fmt((k+1)*N);
+  setStatus($('#st3'),'ok','네거티브 샘플링은 전체 소프트맥스보다 약 '+fmt(V/(k+1))+'배 적게 계산합니다');
+}
+[s3v,s3n,s3k].forEach(function(el){ el.addEventListener('input',draw3); });
+
+/* ══════════════ 데모 4 : 허프만 트리 ══════════════ */
+var HW=[['the',120],['of',60],['and',45],['word',20],['vector',12],['model',9],['corpus',5],['quantum',2]];
+var hsel='vector', hleaves=[];
+function huffman(){
+  var nodes=HW.map(function(x,i){ return {w:x[0], f:x[1], leaf:true, id:i}; });
+  var pool=nodes.slice(), id=100;
+  while(pool.length>1){
+    pool.sort(function(a,b){ return a.f-b.f; });
+    var a=pool.shift(), b=pool.shift();
+    pool.push({f:a.f+b.f, l:a, r:b, leaf:false, id:id++});
+  }
+  return {root:pool[0], leaves:nodes};
+}
+function draw4(){
+  var e=fit($('#c4')), g=e.g, w=e.w, h=e.h;
+  var T=huffman(), root=T.root;
+  var order=[], maxd=0;
+  (function walk(n,d){
+    n.depth=d; maxd=Math.max(maxd,d);
+    if(n.leaf){ order.push(n); return; }
+    walk(n.l,d+1); walk(n.r,d+1);
+  })(root,0);
+  var pl=20, pr=20, pt=22, pb=34;
+  var lw=(w-pl-pr)/order.length;
+  order.forEach(function(n,i){ n.x=pl+lw*(i+0.5); });
+  (function place(n){
+    if(n.leaf){ n.y=pt+n.depth*((h-pt-pb)/Math.max(1,maxd)); return; }
+    place(n.l); place(n.r);
+    n.x=(n.l.x+n.r.x)/2;
+    n.y=pt+n.depth*((h-pt-pb)/Math.max(1,maxd));
+  })(root);
+  /* 선택 경로 */
+  var path={};
+  (function findp(n,acc){
+    if(n.leaf){ if(n.w===hsel){ acc.concat([n]).forEach(function(x){ path[x.id]=true; }); } return; }
+    findp(n.l,acc.concat([n])); findp(n.r,acc.concat([n]));
+  })(root,[]);
+  /* 간선 */
+  (function edges(n){
+    if(n.leaf) return;
+    [[n.l,'0'],[n.r,'1']].forEach(function(p){
+      var on=path[n.id]&&path[p[0].id];
+      line(g,n.x,n.y,p[0].x,p[0].y,on?C('--s2'):C('--axis'),on?2.6:1.2);
+      if(on) label(g,p[1]==='0'?'왼쪽':'오른쪽',(n.x+p[0].x)/2+4,(n.y+p[0].y)/2-3,C('--s2'),10);
+    });
+    edges(n.l); edges(n.r);
+  })(root);
+  /* 노드 */
+  hleaves=[];
+  (function nodes(n){
+    if(!n.leaf){
+      dot(g,n.x,n.y,7,path[n.id]?C('--s2'):C('--surface-1'),path[n.id]?C('--s2'):C('--axis'));
+      nodes(n.l); nodes(n.r); return;
+    }
+    var tw=Math.max(38,lw-8), bx=n.x-tw/2, by=n.y-2;
+    rrect(g,bx,by,tw,32,6);
+    g.fillStyle=path[n.id]?C('--wash'):C('--surface-1'); g.fill();
+    g.strokeStyle=path[n.id]?C('--s2'):C('--border'); g.lineWidth=path[n.id]?2:1; g.stroke();
+    label(g,n.w,n.x,by+14,path[n.id]?C('--s2'):C('--text-primary'),Math.min(12,tw*0.28),'center');
+    label(g,String(n.f),n.x,by+27,C('--muted'),10,'center');
+    hleaves.push({x:bx,y:by,w:tw,h:32,word:n.w});
+  })(root);
+  label(g,'내부 노드마다 시그모이드 한 번 — 잎에 닿으면 확률이 완성된다',pl,14,C('--muted'),10.5);
+
+  var sel=order.filter(function(n){ return n.w===hsel; })[0];
+  var tot=0, wsum=0;
+  order.forEach(function(n){ tot+=n.f*n.depth; wsum+=n.f; });
+  $('#r4w').textContent=hsel;
+  $('#r4d').textContent=(sel?sel.depth:0)+' 회';
+  $('#r4a').textContent=(tot/wsum).toFixed(2)+' 회';
+  $('#r4u').textContent=Math.log2(HW.length).toFixed(2)+' 회';
+  setStatus($('#st4'),'ok','빈도 가중 평균 경로가 '+(tot/wsum).toFixed(2)+'회 — 균등 트리('+Math.log2(HW.length)+'회)보다 짧습니다. 흔한 단어가 뿌리에 가깝기 때문입니다');
+}
+$('#c4').addEventListener('pointerdown',function(ev){
+  var r=this.getBoundingClientRect();
+  var x=(ev.clientX-r.left)*(this.clientWidth/r.width), y=(ev.clientY-r.top)*(parseInt(this.dataset.baseH,10)/r.height);
+  hleaves.forEach(function(L){ if(x>=L.x&&x<=L.x+L.w&&y>=L.y&&y<=L.y+L.h) hsel=L.word; });
+  draw4();
+});
+
+/* ══════════════ 데모 5 : 3/4 제곱 ══════════════ */
+var s5a=$('#s5a');
+var FW=[['the',0.070],['of',0.035],['and',0.028],['to',0.026],['in',0.021],
+        ['is',0.010],['man',0.0012],['time',0.0010],['vector',0.00005],['quantum',0.000005]];
+function draw5(){
+  var a=+s5a.value; $('#v5a').textContent=a.toFixed(2);
+  var raw=FW.map(function(x){ return x[1]; });
+  var pw=raw.map(function(f){ return Math.pow(f,a); });
+  var Z=pw.reduce(function(s,v){ return s+v; },0);
+  var p=pw.map(function(v){ return v/Z; });
+  var e=fit($('#c5')), g=e.g, w=e.w, h=e.h;
+  var pl=46, pr=12, pt=20, pb=46, lo=-6, hi=0;
+  var Y=function(v){ var t=(Math.log10(Math.max(v,1e-7))-lo)/(hi-lo); return h-pb-t*(h-pb-pt); };
+  for(var d=lo;d<=hi;d++){
+    line(g,pl,Y(Math.pow(10,d)),w-pr,Y(Math.pow(10,d)),C('--grid'),1);
+    label(g,sup10(d),pl-6,Y(Math.pow(10,d))+4,C('--muted'),10,'end');
+  }
+  var n=FW.length, bw=(w-pl-pr)/n;
+  FW.forEach(function(x,i){
+    var cx=pl+bw*(i+0.5);
+    /* 원래 빈도 */
+    var y1=Y(raw[i]); g.fillStyle=C('--muted'); g.globalAlpha=0.45;
+    g.fillRect(cx-bw*0.36, y1, bw*0.32, h-pb-y1); g.globalAlpha=1;
+    /* 샘플링 확률 */
+    var y2=Y(p[i]); g.fillStyle=C('--s1');
+    g.fillRect(cx+bw*0.04, y2, bw*0.32, h-pb-y2);
+    g.save(); g.translate(cx,h-pb+8); g.rotate(-0.5);
+    label(g,x[0],0,0,C('--text-secondary'),11,'end'); g.restore();
+  });
+  line(g,pl,h-pb,w-pr,h-pb,C('--axis'),1);
+  label(g,'회색 = 원래 빈도 · 파랑 = 네거티브로 뽑힐 확률 (로그 스케일)',pl,14,C('--muted'),10.5);
+  $('#r5t').textContent=(p[0]*100).toFixed(1)+' %';
+  $('#r5q').textContent=(p[9]*100).toFixed(4)+' %';
+  $('#r5r').textContent=fmt(p[0]/p[9])+' : 1';
+}
+s5a.addEventListener('input',draw5);
+Array.prototype.forEach.call(document.querySelectorAll('button[data-a]'),function(b){
+  b.addEventListener('click',function(){ s5a.value=b.dataset.a; draw5(); });
+});
+
+/* ══════════════ 데모 6 : 서브샘플링 ══════════════ */
+var s6t=$('#s6t');
+var SUBW=[['the',0.07],['of',0.035],['is',0.010],['man',0.0012],['time',0.001],['quantum',0.000005]];
+function pdisc(f,t){ return f<=t ? 0 : Math.max(0,1-Math.sqrt(t/f)); }
+function draw6(){
+  var t=Math.pow(10,+s6t.value);
+  $('#v6t').textContent=t.toExponential(1).replace('e-','e−');
+  var e=fit($('#c6')), g=e.g, w=e.w, h=e.h;
+  var pl=44, pr=14, pt=18, pb=42, lo=-6.5, hi=-0.8;
+  var X=function(f){ return pl+(Math.log10(f)-lo)/(hi-lo)*(w-pl-pr); };
+  var Y=function(v){ return h-pb-v*(h-pb-pt); };
+  [0,0.25,0.5,0.75,1].forEach(function(v){
+    line(g,pl,Y(v),w-pr,Y(v),C('--grid'),1);
+    label(g,(v*100)+'%',pl-6,Y(v)+4,C('--muted'),10,'end');
+  });
+  for(var d=Math.ceil(lo);d<=Math.floor(hi);d++){
+    line(g,X(Math.pow(10,d)),pt,X(Math.pow(10,d)),h-pb,C('--grid'),1,[3,3]);
+    label(g,sup10(d),X(Math.pow(10,d)),h-pb+14,C('--muted'),10,'center');
+  }
+  line(g,pl,h-pb,w-pr,h-pb,C('--axis'),1);
+  g.strokeStyle=C('--s1'); g.lineWidth=2.4; g.beginPath();
+  for(var i=0;i<=200;i++){
+    var f=Math.pow(10,lo+(hi-lo)*i/200);
+    if(i===0) g.moveTo(X(f),Y(pdisc(f,t))); else g.lineTo(X(f),Y(pdisc(f,t)));
+  }
+  g.stroke();
+  line(g,X(t),pt,X(t),h-pb,C('--s2'),1.4,[5,4]);
+  label(g,'t',X(t)+5,pt+11,C('--s2'),11.5);
+  SUBW.forEach(function(x,k){
+    var f=x[1], pv=pdisc(f,t);
+    dot(g,X(f),Y(pv),4.5,C('--s2'),C('--surface-1'));
+    label(g,x[0],X(f),Y(pv)-9+(k%2?14:0),C('--text-secondary'),11,'center');
+  });
+  label(g,'가로축 = 코퍼스 내 빈도 비율 · 세로축 = 버릴 확률',pl,14,C('--muted'),10.5);
+  $('#r6a').textContent=(pdisc(0.07,t)*100).toFixed(1)+' % 버림';
+  $('#r6b').textContent=(pdisc(0.001,t)*100).toFixed(1)+' % 버림';
+  $('#r6c').textContent=(pdisc(0.000005,t)*100).toFixed(1)+' % 버림';
+}
+s6t.addEventListener('input',draw6);
+
+/* ══════════════ 데모 7 : SGNS 학습 ══════════════ */
+var CORPUS=[
+"the king rules the kingdom","the queen rules the kingdom",
+"the king sits on the throne","the queen sits on the throne",
+"the king wears the crown","the queen wears the crown",
+"the king lives in the palace","the queen lives in the palace",
+"the prince lives in the palace","the princess lives in the palace",
+"the prince learns from the king","the princess learns from the queen",
+"the king is a man","the queen is a woman",
+"the prince is a boy","the princess is a girl",
+"the father is a man","the mother is a woman",
+"the brother is a boy","the sister is a girl",
+"the son is a boy","the daughter is a girl",
+"the uncle is a man","the aunt is a woman",
+"the man works in the field","the woman works in the field",
+"the father works in the field","the mother works in the field",
+"the boy plays in the yard","the girl plays in the yard",
+"the son plays in the yard","the daughter plays in the yard",
+"the man lives in the house","the woman lives in the house",
+"the family lives in the house","the royal family lives in the palace",
+"the father loves the family","the mother loves the family",
+"the son loves the family","the daughter loves the family",
+"the brother loves the sister","the sister loves the brother",
+"the uncle visits the family","the aunt visits the family",
+"the king said he was tired","the queen said she was tired",
+"the man said he was tired","the woman said she was tired",
+"the boy said he was happy","the girl said she was happy",
+"the prince said he was happy","the princess said she was happy",
+"the father said he was happy","the mother said she was happy",
+"the brother said he was tired","the sister said she was tired",
+"the uncle said he was happy","the aunt said she was happy",
+"the son said he was tired","the daughter said she was tired",
+"the king and the queen rule together","the prince and the princess play together",
+"the man and the woman work together","the boy and the girl play together"
+].join('\n');
+var GRP={
+  royal:['king','queen','prince','princess','throne','crown','palace','kingdom','royal','rules','rule'],
+  male:['man','boy','father','brother','son','uncle','he'],
+  female:['woman','girl','mother','sister','daughter','aunt','she']
+};
+function groupOf(w){
+  if(GRP.royal.indexOf(w)>=0) return {c:'--s4',n:'왕족'};
+  if(GRP.male.indexOf(w)>=0) return {c:'--s1',n:'남성'};
+  if(GRP.female.indexOf(w)>=0) return {c:'--s2',n:'여성'};
+  return {c:'--muted',n:'기타'};
+}
+var W2V={ready:false, vocab:[], idx:{}, cnt:[], sents:[], W:null, W2:null, dim:24, xy:[], loss:[], run:false, ep:0, sel:null, pairs:0};
+var t7=$('#t7'); t7.value=CORPUS;
+var sub7=true;
+
+function buildVocab(){
+  var text=t7.value.toLowerCase();
+  var sents=text.split('\n').map(function(l){ return (l.match(/[a-z]+/g)||[]); }).filter(function(a){ return a.length>1; });
+  var cnt={}, tot=0;
+  sents.forEach(function(s){ s.forEach(function(t){ cnt[t]=(cnt[t]||0)+1; tot++; }); });
+  var vocab=Object.keys(cnt).sort(function(a,b){ return cnt[b]-cnt[a]; });
+  var idx={}; vocab.forEach(function(w,i){ idx[w]=i; });
+  W2V.vocab=vocab; W2V.idx=idx; W2V.total=tot;
+  W2V.cnt=vocab.map(function(w){ return cnt[w]; });
+  W2V.sents=sents.map(function(s){ return s.map(function(t){ return idx[t]; }); });
+  /* 3/4 제곱 샘플링 테이블 */
+  var pw=W2V.cnt.map(function(c){ return Math.pow(c,0.75); });
+  var Z=pw.reduce(function(a,b){ return a+b; },0);
+  var tbl=new Int32Array(20000), j=0, acc=pw[0]/Z;
+  for(var i=0;i<20000;i++){
+    tbl[i]=j;
+    if(i/20000 > acc && j<pw.length-1){ j++; acc+=pw[j]/Z; }
+  }
+  W2V.table=tbl;
+  W2V.dim=+$('#s7d').value;
+  W2V.W=new Float32Array(vocab.length*W2V.dim);
+  W2V.W2=new Float32Array(vocab.length*W2V.dim);
+  for(var k=0;k<W2V.W.length;k++) W2V.W[k]=(Math.random()-0.5)/W2V.dim;
+  W2V.loss=[]; W2V.ep=0; W2V.ready=false; W2V.sel=null;
+  $('#r7v').textContent=vocab.length+' 단어';
+  $('#r7p').textContent='—';
+  $('#r7e').textContent='0 / '+$('#s7e').value;
+  $('#r7l').textContent='—';
+  fillSelects();
+  computeXY();
+}
+function trainEpoch(lr){
+  /* 임계값 t는 코퍼스 크기에 맞춘다 — 15회보다 자주 나오는 단어부터 버리기 시작 */
+  var dim=W2V.dim, C=+$('#s7w').value, K=+$('#s7k').value, t=15/W2V.total;
+  var W=W2V.W, W2=W2V.W2, tbl=W2V.table, V=W2V.vocab.length;
+  var loss=0, np=0, neu=new Float32Array(dim);
+  for(var s=0;s<W2V.sents.length;s++){
+    var raw=W2V.sents[s], sent=[];
+    for(var q=0;q<raw.length;q++){
+      if(sub7){
+        var f=W2V.cnt[raw[q]]/W2V.total;
+        var keep = f<=t ? 1 : Math.sqrt(t/f);
+        if(Math.random()>keep) continue;
+      }
+      sent.push(raw[q]);
+    }
+    for(var i=0;i<sent.length;i++){
+      var b=1+Math.floor(Math.random()*C);
+      for(var j=Math.max(0,i-b); j<=Math.min(sent.length-1,i+b); j++){
+        if(j===i) continue;
+        var ctr=sent[i], out=sent[j];
+        for(var d=0;d<dim;d++) neu[d]=0;
+        for(var n=0;n<=K;n++){
+          var tgt, lbl;
+          if(n===0){ tgt=out; lbl=1; }
+          else {
+            tgt=tbl[(Math.random()*20000)|0];
+            if(tgt===out) continue;
+            lbl=0;
+          }
+          var f2=0, o1=ctr*dim, o2=tgt*dim;
+          for(var d2=0;d2<dim;d2++) f2+=W[o1+d2]*W2[o2+d2];
+          var p=1/(1+Math.exp(-f2));
+          var gr=(lbl-p)*lr;
+          loss += -Math.log(Math.max(1e-10, lbl?p:1-p));
+          for(var d3=0;d3<dim;d3++){
+            neu[d3]+=gr*W2[o2+d3];
+            W2[o2+d3]+=gr*W[o1+d3];
+          }
+        }
+        for(var d4=0;d4<dim;d4++) W[ctr*dim+d4]+=neu[d4];
+        np++;
+      }
+    }
+  }
+  W2V.pairs=np;
+  return np? loss/np : 0;
+}
+function computeXY(){
+  var V=W2V.vocab.length, dim=W2V.dim, W=W2V.W;
+  var mean=new Float64Array(dim);
+  for(var i=0;i<V;i++) for(var d=0;d<dim;d++) mean[d]+=W[i*dim+d]/V;
+  var X=[];
+  for(var i2=0;i2<V;i2++){
+    var r=new Float64Array(dim);
+    for(var d2=0;d2<dim;d2++) r[d2]=W[i2*dim+d2]-mean[d2];
+    X.push(r);
+  }
+  function power(X,exclude){
+    var v=new Float64Array(dim);
+    for(var d=0;d<dim;d++) v[d]=Math.random()-0.5;
+    for(var it=0;it<60;it++){
+      var nv=new Float64Array(dim);
+      for(var i=0;i<X.length;i++){
+        var s=0;
+        for(var d2=0;d2<dim;d2++) s+=X[i][d2]*v[d2];
+        for(var d3=0;d3<dim;d3++) nv[d3]+=s*X[i][d3];
+      }
+      if(exclude){
+        var p=0;
+        for(var d4=0;d4<dim;d4++) p+=nv[d4]*exclude[d4];
+        for(var d5=0;d5<dim;d5++) nv[d5]-=p*exclude[d5];
+      }
+      var nrm=0;
+      for(var d6=0;d6<dim;d6++) nrm+=nv[d6]*nv[d6];
+      nrm=Math.sqrt(nrm)||1;
+      for(var d7=0;d7<dim;d7++) v[d7]=nv[d7]/nrm;
+    }
+    return v;
+  }
+  var p1=power(X,null), p2=power(X,p1);
+  W2V.xy=X.map(function(r){
+    var a=0,b=0;
+    for(var d=0;d<dim;d++){ a+=r[d]*p1[d]; b+=r[d]*p2[d]; }
+    return [a,b];
+  });
+}
+function vec(w){
+  var i=W2V.idx[w]; if(i===undefined) return null;
+  return Array.prototype.slice.call(W2V.W, i*W2V.dim, (i+1)*W2V.dim);
+}
+function nearest(v, excl, n){
+  var out=[];
+  for(var i=0;i<W2V.vocab.length;i++){
+    var w=W2V.vocab[i];
+    if(excl && excl.indexOf(w)>=0) continue;
+    out.push({w:w, s:cos(v, Array.prototype.slice.call(W2V.W, i*W2V.dim, (i+1)*W2V.dim))});
+  }
+  out.sort(function(a,b){ return b.s-a.s; });
+  return out.slice(0,n||5);
+}
+var pts7=[];
+function draw7(){
+  var e=fit($('#c7')), g=e.g, w=e.w, h=e.h;
+  var padL=16, padR=76, padT=28, padB=34, xs=W2V.xy;
+  if(!xs.length){ return; }
+  var mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  xs.forEach(function(p){ mnx=Math.min(mnx,p[0]); mxx=Math.max(mxx,p[0]); mny=Math.min(mny,p[1]); mxy=Math.max(mxy,p[1]); });
+  if(mxx-mnx<1e-9){ mxx+=1; mnx-=1; } if(mxy-mny<1e-9){ mxy+=1; mny-=1; }
+  var X=function(v){ return padL+(v-mnx)/(mxx-mnx)*(w-padL-padR); };
+  var Y=function(v){ return h-padB-(v-mny)/(mxy-mny)*(h-padT-padB); };
+  label(g, W2V.ready?'주성분 2개로 투영한 단어 지도 (단어를 클릭해 보세요)':'학습 전 — 무작위 초기값',
+    8, 15, C('--muted'), 11);
+  pts7=[];
+  W2V.vocab.forEach(function(wd,i){
+    var gp=groupOf(wd), x=X(xs[i][0]), y=Y(xs[i][1]);
+    var on = W2V.sel===wd;
+    dot(g,x,y, on?5.5:3, C(gp.c), on?C('--text-primary'):null);
+    var right = x > w-padR-40;
+    label(g,wd, right?x-6:x+6, y+4, on?C('--text-primary'):C(gp.c), on?12.5:11, right?'end':'left');
+    pts7.push({x:x,y:y,w:wd});
+  });
+  /* 손실 곡선 */
+  if(W2V.loss.length>1){
+    var lw2=Math.min(150,w*0.32), lh=48, lx=w-lw2-8, ly=h-lh-8;
+    g.fillStyle=C('--page'); g.globalAlpha=0.85;
+    rrect(g,lx,ly,lw2,lh,6); g.fill(); g.globalAlpha=1;
+    g.strokeStyle=C('--border'); g.lineWidth=1; g.stroke();
+    var mx=Math.max.apply(null,W2V.loss), mn=Math.min.apply(null,W2V.loss);
+    g.strokeStyle=C('--s3'); g.lineWidth=1.8; g.beginPath();
+    W2V.loss.forEach(function(v,i){
+      var px=lx+6+(i/(W2V.loss.length-1))*(lw2-12);
+      var py=ly+lh-8-((v-mn)/((mx-mn)||1))*(lh-16);
+      if(i===0) g.moveTo(px,py); else g.lineTo(px,py);
+    });
+    g.stroke();
+    label(g,'손실',lx+6,ly+11,C('--muted'),9.5);
+  }
+  /* 범례 */
+  var lg=[['왕족','--s4'],['남성','--s1'],['여성','--s2'],['기타','--muted']];
+  lg.forEach(function(p,i){
+    dot(g,12+i*58,h-10,4,C(p[1]),null);
+    label(g,p[0],20+i*58,h-6,C('--muted'),10.5);
+  });
+}
+$('#c7').addEventListener('pointerdown',function(ev){
+  if(!W2V.ready) return;
+  var r=this.getBoundingClientRect();
+  var x=(ev.clientX-r.left)*(this.clientWidth/r.width);
+  var y=(ev.clientY-r.top)*(parseInt(this.dataset.baseH,10)/r.height);
+  var best=null,bd=1e9;
+  pts7.forEach(function(p){
+    var d=(p.x-x)*(p.x-x)+(p.y-y)*(p.y-y);
+    if(d<bd){ bd=d; best=p; }
+  });
+  if(best && bd<2500){
+    W2V.sel=best.w;
+    var nb=nearest(vec(best.w),[best.w],5);
+    $('#nbr7').innerHTML='<span style="border-color:var(--s1)"><b>'+best.w+'</b>의 이웃</span>'+
+      nb.map(function(o){ return '<span>'+o.w+' <b>'+o.s.toFixed(2)+'</b></span>'; }).join('');
+    draw7();
+  }
+});
+function runTrain(){
+  var total=+$('#s7e').value;
+  W2V.run=true; $('#b7run').disabled=true;
+  function chunk(){
+    if(!W2V.run){ $('#b7run').disabled=false; return; }
+    var per=Math.max(1,Math.round(total/60));
+    for(var i=0;i<per && W2V.ep<total;i++){
+      var lr=0.05*(1-W2V.ep/total)+0.0008;
+      var L=trainEpoch(lr);
+      W2V.ep++;
+      if(W2V.ep%Math.max(1,Math.round(total/60))===0 || W2V.ep===total) W2V.loss.push(L);
+    }
+    computeXY(); W2V.ready=true; draw7();
+    $('#r7e').textContent=W2V.ep+' / '+total;
+    $('#r7p').textContent=fmt(W2V.pairs)+' / 에폭';
+    $('#r7l').textContent=(W2V.loss.length?W2V.loss[W2V.loss.length-1].toFixed(3):'—');
+    setStatus($('#st7'),'info','학습 중… '+Math.round(W2V.ep/total*100)+'%');
+    if(W2V.ep<total){ requestAnimationFrame(chunk); }
+    else {
+      W2V.run=false; $('#b7run').disabled=false;
+      var kq=nearest(vec('king'),['king'],3);
+      setStatus($('#st7'),'ok','학습 완료 — king의 최근접 이웃: '+kq.map(function(o){ return o.w+'('+o.s.toFixed(2)+')'; }).join(', '));
+    }
+  }
+  requestAnimationFrame(chunk);
+}
+$('#b7run').addEventListener('click',function(){
+  if(W2V.ep>0) buildVocab();
+  runTrain();
+});
+$('#b7reset').addEventListener('click',function(){
+  W2V.run=false; buildVocab(); draw7();
+  setStatus($('#st7'),'warn','초기화됨 — 무작위 벡터 상태입니다');
+  $('#nbr7').innerHTML=''; $('#nbr8').innerHTML=''; $('#ares').textContent='?';
+});
+$('#b7sub').addEventListener('click',function(){
+  sub7=!sub7; this.setAttribute('aria-pressed',sub7?'true':'false');
+  this.textContent=sub7?'서브샘플링 켬':'서브샘플링 끔';
+});
+$('#b7corpus').addEventListener('click',function(){
+  var b=$('#corpusBox'); b.style.display = b.style.display==='none' ? 'block' : 'none';
+});
+t7.addEventListener('change',function(){ buildVocab(); draw7(); });
+['s7d','s7w','s7k','s7e'].forEach(function(id){
+  $('#'+id).addEventListener('input',function(){
+    $('#v'+id.slice(1)).textContent=this.value;
+    if(id==='s7d'||id==='s7e'){ W2V.run=false; buildVocab(); draw7(); }
+  });
+});
+
+/* ══════════════ 데모 8 : 유추 ══════════════ */
+function fillSelects(){
+  ['#a1','#a2','#a3'].forEach(function(sel,k){
+    var el=$(sel), cur=el.value;
+    el.innerHTML='';
+    W2V.vocab.slice().sort().forEach(function(w){
+      var o=document.createElement('option'); o.value=w; o.textContent=w; el.appendChild(o);
+    });
+    var def=['king','man','woman'][k];
+    el.value = (cur && W2V.idx[cur]!==undefined) ? cur : (W2V.idx[def]!==undefined ? def : W2V.vocab[0]);
+  });
+}
+function draw8(){
+  var e=fit($('#c8')), g=e.g, w=e.w, h=e.h;
+  var a=$('#a1').value, b=$('#a2').value, c=$('#a3').value;
+  if(!W2V.ready){
+    label(g,'먼저 데모 7에서 학습을 실행해 주세요',w/2,h/2,C('--muted'),13,'center');
+    setStatus($('#st8'),'warn','학습된 벡터가 없습니다 — 데모 7의 ▶ 학습 시작을 눌러 주세요');
+    $('#ares').textContent='?'; $('#nbr8').innerHTML='';
+    return;
+  }
+  var va=vec(a), vb=vec(b), vc=vec(c);
+  var res=va.map(function(x,i){ return x-vb[i]+vc[i]; });
+  var nb=nearest(res,[a,b,c],5);
+  $('#ares').textContent=nb[0].w;
+  $('#nbr8').innerHTML=nb.map(function(o,i){
+    return '<span'+(i===0?' style="border-color:var(--s2)"':'')+'>'+o.w+' <b>'+o.s.toFixed(3)+'</b></span>';
+  }).join('');
+  /* 평행사변형 */
+  var d=nb[0].w;
+  var ids=[a,b,c,d].map(function(x){ return W2V.idx[x]; });
+  var xs=W2V.xy, pad=40;
+  var mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  ids.forEach(function(i){ mnx=Math.min(mnx,xs[i][0]); mxx=Math.max(mxx,xs[i][0]); mny=Math.min(mny,xs[i][1]); mxy=Math.max(mxy,xs[i][1]); });
+  var sx=(mxx-mnx)||1, sy=(mxy-mny)||1;
+  var X=function(v){ return pad+(v-mnx+sx*0.15)/(sx*1.3)*(w-pad*2); };
+  var Y=function(v){ return h-pad-(v-mny+sy*0.15)/(sy*1.3)*(h-pad*2); };
+  var P=ids.map(function(i){ return {x:X(xs[i][0]), y:Y(xs[i][1])}; });
+  arrow(g,P[1].x,P[1].y,P[0].x,P[0].y,C('--s1'),2.2);
+  arrow(g,P[2].x,P[2].y,P[3].x,P[3].y,C('--s2'),2.2);
+  line(g,P[1].x,P[1].y,P[2].x,P[2].y,C('--axis'),1,[4,4]);
+  line(g,P[0].x,P[0].y,P[3].x,P[3].y,C('--axis'),1,[4,4]);
+  [[0,a],[1,b],[2,c],[3,d]].forEach(function(p){
+    var col = p[0]===3 ? C('--s2') : C('--text-primary');
+    dot(g,P[p[0]].x,P[p[0]].y,4.5,col,C('--surface-1'));
+    label(g,p[1],P[p[0]].x+7,P[p[0]].y+4,col,12.5);
+  });
+  label(g,'파랑: '+b+' → '+a+'  ·  주황: '+c+' → '+d+'  (두 화살표가 나란할수록 좋은 유추)',8,15,C('--muted'),10.5);
+  var v1=[xs[ids[0]][0]-xs[ids[1]][0], xs[ids[0]][1]-xs[ids[1]][1]];
+  var v2=[xs[ids[3]][0]-xs[ids[2]][0], xs[ids[3]][1]-xs[ids[2]][1]];
+  var al=cos(v1,v2);
+  setStatus($('#st8'), nb[0].s>0.5?'ok':'warn',
+    a+' − '+b+' + '+c+' = <strong>'+d+'</strong> (유사도 '+nb[0].s.toFixed(3)+', 두 화살표 정렬 '+al.toFixed(2)+')');
+}
+['#a1','#a2','#a3'].forEach(function(s){ $(s).addEventListener('change',draw8); });
+Array.prototype.forEach.call(document.querySelectorAll('.apre'),function(b){
+  b.addEventListener('click',function(){
+    if(W2V.idx[b.dataset.a]===undefined) return;
+    $('#a1').value=b.dataset.a; $('#a2').value=b.dataset.b; $('#a3').value=b.dataset.c; draw8();
+  });
+});
+
+/* ══════════════ 데모 9 : 구 학습 ══════════════ */
+var PC=[
+"i moved to new york last year","new york is a big city","she lives in new york city",
+"we flew to san francisco","san francisco has a famous bridge","the san francisco fog is famous",
+"he took air canada to toronto","air canada is the national airline",
+"this is a machine learning course","machine learning needs a lot of data",
+"machine learning is part of computer science","this is a good day",
+"this is the best of the year","the city of new york is large",
+"we study machine learning and data science","data science uses machine learning"
+];
+var s9d=$('#s9d'), s9t=$('#s9t');
+function draw9(){
+  var delta=+s9d.value, th=+s9t.value;
+  $('#v9d').textContent=delta.toFixed(1); $('#v9t').textContent=th;
+  var uni={}, bi={}, N=0;
+  PC.forEach(function(s){
+    var t=s.split(/\s+/);
+    t.forEach(function(x){ uni[x]=(uni[x]||0)+1; N++; });
+    for(var i=0;i<t.length-1;i++){
+      var k=t[i]+' '+t[i+1];
+      bi[k]=(bi[k]||0)+1;
+    }
+  });
+  var rows=Object.keys(bi).map(function(k){
+    var p=k.split(' ');
+    var sc=(bi[k]-delta)*N/(uni[p[0]]*uni[p[1]]);
+    return {k:k, c:bi[k], a:uni[p[0]], b:uni[p[1]], s:sc};
+  }).sort(function(x,y){ return y.s-x.s; }).slice(0,12);
+  var html='<table><thead><tr><th>바이그램</th><th class="num">동시 등장</th><th class="num">각각의 빈도</th><th class="num">점수</th><th>판정</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var ok=r.s>=th;
+    html+='<tr'+(ok?' style="background:rgba(12,163,12,0.07)"':'')+'>'+
+      '<td class="mono">'+r.k+'</td><td class="num">'+r.c+'</td>'+
+      '<td class="num">'+r.a+' · '+r.b+'</td>'+
+      '<td class="num">'+r.s.toFixed(1)+'</td>'+
+      '<td>'+(ok?'<strong style="color:var(--good)">하나의 토큰으로</strong>':'그대로 둠')+'</td></tr>';
+  });
+  html+='</tbody></table>';
+  $('#tw9').innerHTML=html;
+  var merged=rows.filter(function(r){ return r.s>=th; }).map(function(r){ return r.k; });
+  setStatus($('#st9'), merged.length?'ok':'warn',
+    merged.length ? '합쳐질 구 '+merged.length+'개: '+merged.slice(0,4).map(function(m){ return m.replace(' ','_'); }).join(', ')+(merged.length>4?' …':'')
+                  : '문턱값이 너무 높습니다 — 아무 조합도 합쳐지지 않습니다');
+}
+[s9d,s9t].forEach(function(el){ el.addEventListener('input',draw9); });
+
+/* ══════════════ 퀴즈 ══════════════ */
+(function(){
+  var QS=[
+    {q:'원-핫 인코딩의 근본적인 한계는?',
+     o:['벡터가 너무 짧아 정보를 못 담는다','서로 다른 두 단어의 내적이 항상 0이라 의미적 유사성을 표현할 수 없다',
+        '음수를 표현할 수 없다','학습이 너무 느리다'], a:1,
+     e:'차원이 큰 것도 문제지만 본질은 직교성입니다. “개”와 “고양이”, “개”와 “행정”이 똑같이 무관해집니다. (§1)'},
+    {q:'분포 가설(distributional hypothesis)의 요지는?',
+     o:['단어의 의미는 사전이 정의한다','단어의 의미는 함께 나타나는 이웃 단어들이 결정한다',
+        '단어의 의미는 문법 범주로 결정된다','단어의 빈도가 의미의 중요도를 결정한다'], a:1,
+     e:'Harris(1954)와 Firth(1957)의 통찰로, word2vec은 이 가설을 “주변 단어 맞히기”라는 예측 과제로 옮긴 것입니다. (§1)'},
+    {q:'CBOW와 Skip-gram의 차이로 옳은 것은?',
+     o:['CBOW는 문맥→중심어, Skip-gram은 중심어→문맥어를 예측한다',
+        'CBOW는 은닉층이 있고 Skip-gram은 없다','Skip-gram은 순서를 고려하고 CBOW는 무시한다는 점에서 정확도가 항상 높다',
+        '둘은 손실 함수만 다르고 입출력은 같다'], a:0,
+     e:'Skip-gram은 중심어 하나로 여러 예측을 만들어 학습 신호가 많아 드문 단어에 강하고, CBOW는 문맥을 평균내어 한 번에 예측하므로 빠릅니다. (§2)'},
+    {q:'소프트맥스가 word2vec에서 병목이 되는 이유는?',
+     o:['지수 함수 계산이 느려서','분모에서 어휘 전체 V개의 내적을 매번 더해야 해서',
+        '역전파가 불가능해서','벡터 차원 N이 커서'], a:1,
+     e:'V가 100만이면 학습 예제 하나에 100만 번의 내적입니다. 계층적 소프트맥스는 이를 log₂V번의 이진 결정으로, 네거티브 샘플링은 k+1번의 판정으로 바꿉니다. (§3, §4)'},
+    {q:'네거티브 샘플링이 푸는 문제의 형태는?',
+     o:['어휘 전체에 대한 확률 분포를 계산한다','(중심어, 문맥어) 쌍이 진짜인지 지어낸 것인지 판정하는 이진 분류다',
+        '단어를 클러스터로 묶는다','문장의 다음 단어를 생성한다'], a:1,
+     e:'분포를 만드는 일 자체를 포기하고 참·거짓 판정으로 바꾼 것이 핵심입니다. 갱신 대상이 k+1개 벡터로 줄어듭니다. (§4)'},
+    {q:'네거티브를 빈도의 3/4 제곱에 비례해 뽑는 이유는?',
+     o:['정보 이론에서 유도된 최적값이라서','빈도 그대로 뽑으면 흔한 단어만, 균등하게 뽑으면 희귀어가 과도하게 뽑히므로 그 중간을 택한 경험적 절충이라서',
+        '계산이 가장 빨라서','확률의 합을 1로 만들기 위해서'], a:1,
+     e:'논문도 여러 값을 시험해 가장 잘 작동한 값으로 소개합니다. 이론적 유도가 아닙니다. (§4)'},
+    {q:'서브샘플링 P = 1 − √(t/f(w)) 가 하는 일은?',
+     o:['드문 단어를 제거한다','흔한 단어를 확률적으로 버려 학습을 빠르게 하고 신호 대비 잡음을 줄인다',
+        '벡터를 정규화한다','문장 길이를 맞춘다'], a:1,
+     e:'부수 효과로 흔한 단어가 빠지면서 남은 단어 사이 거리가 가까워져 윈도우가 실질적으로 넓어집니다. (§5)'},
+    {q:'“king − man + woman ≈ queen”이 성립하는 이유로 가장 적절한 설명은?',
+     o:['벡터 덧셈이 문자열 연결과 같아서','성별을 바꾸는 조작이 공간 안에서 거의 일정한 방향 벡터로 나타나기 때문에',
+        '모델이 유추 문제로 학습되었기 때문에','queen이 king 다음으로 흔한 단어이기 때문에'], a:1,
+     e:'관계가 일정한 방향과 크기의 차이 벡터로 인코딩되기에 다른 쌍에도 같은 조작을 옮길 수 있습니다. 다만 모든 관계에서 깔끔하게 성립하지는 않습니다. (§7)'},
+    {q:'구(phrase) 점수 (count(wiwj) − δ) / (count(wi)×count(wj))에서 분모가 하는 역할은?',
+     o:['자주 붙어 나오기만 하면 점수를 올린다','각 단어가 원래 얼마나 흔한지로 나누어, 둘 다 흔한 조합(this is)이 과대평가되는 것을 막는다',
+        '문장 길이를 보정한다','벡터 차원을 맞춘다'], a:1,
+     e:'따로는 덜 쓰이는데 붙어서 자주 나오는 조합(new york)이 높은 점수를 받습니다. δ는 우연히 한두 번 붙은 조합을 걸러 냅니다. (§8)'},
+    {q:'Levy & Goldberg(2014)가 밝힌 SGNS의 성질은?',
+     o:['SGNS는 사실상 단어–문맥 PMI 행렬(에서 log k를 뺀 것)을 분해하는 것과 같다',
+        'SGNS는 항상 GloVe보다 우수하다','SGNS는 문맥 임베딩을 만든다','SGNS는 수렴하지 않는다'], a:0,
+     e:'“예측 기반”과 “카운트 기반”이 사실 한 뿌리였다는 결론입니다. 이어진 연구는 성능 차이의 상당 부분이 하이퍼파라미터에서 온다는 점도 보였습니다. (§9)'}
+  ];
+  var box=$('#quiz'), done=0, correct=0;
+  QS.forEach(function(qz,qi){
+    var q=document.createElement('div'); q.className='q';
+    var hh=document.createElement('h4'); hh.textContent='Q'+(qi+1)+'. '+qz.q; q.appendChild(hh);
+    var expl=document.createElement('div'); expl.className='expl';
+    var locked=false;
+    qz.o.forEach(function(opt,oi){
+      var lab=document.createElement('label'); lab.className='opt';
+      var r=document.createElement('input'); r.type='radio'; r.name='q'+qi;
+      var sp=document.createElement('span'); sp.textContent=opt;
+      lab.appendChild(r); lab.appendChild(sp);
+      r.addEventListener('change',function(){
+        if(locked) return; locked=true; done++;
+        var ok=oi===qz.a; if(ok) correct++;
+        lab.classList.add(ok?'correct':'wrong');
+        if(!ok) q.querySelectorAll('.opt')[qz.a].classList.add('correct');
+        expl.classList.add('show'); if(!ok) expl.classList.add('bad');
+        expl.innerHTML=(ok?'<b>정답!</b> ':'<b>아쉽습니다.</b> ')+qz.e;
+        Array.prototype.forEach.call(q.querySelectorAll('input'),function(x){ x.disabled=true; });
+        $('#quizScore').textContent='진행 '+done+'/'+QS.length+' · 정답 '+correct+'개'+
+          (done===QS.length ? (correct>=8?' — 훌륭합니다. 이제 임베딩이 어떻게 만들어지는지 설명할 수 있습니다 🎓'
+            : correct>=5?' — 좋습니다. 틀린 문항의 절을 다시 만져 보세요.'
+            : ' — §3~§5의 데모를 다시 돌려 보시길 권합니다.') : '');
+      });
+      q.appendChild(lab);
+    });
+    q.appendChild(expl); box.appendChild(q);
+  });
+})();
+
+/* ────────── boot ────────── */
+function drawAll(){ draw1(); draw2(); draw3(); draw4(); draw5(); draw6(); draw7(); draw8(); draw9(); }
+window.addEventListener('resize', drawAll);
+buildVocab();
+setStatus($('#st7'),'warn','아직 학습 전입니다 — ▶ 학습 시작을 눌러 주세요');
+drawAll();
+})();
+</script>
+</body>
+</html>
